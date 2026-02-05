@@ -10,7 +10,6 @@
     "plugins": [
       "expo-router"
     ],
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
