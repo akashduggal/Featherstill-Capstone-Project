@@ -21,7 +21,7 @@ The codebase is organized into three main components:
 This project is developed by:
 
 *   **Akash Duggal**
-*   *[Collaborator Name]*
+*   **Suryansh Bhupesh Purohit**
 *   *[Collaborator Name]*
 *   *[Collaborator Name]*
 *   *[Collaborator Name]*
