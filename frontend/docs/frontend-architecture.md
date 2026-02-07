@@ -44,3 +44,49 @@ root/
 ├── services/             # API calls and Firebase
 ├── constants/            # Colors, Spacing, Keys
 └── utils/                # Helper Functions
+```
+
+## Navigation Strategy
+
+- Navigation will be implemented using **Expo Router**
+- Expo Router leverages a file-based routing system built on top of React Navigation
+- Routes are defined by the folder and file structure inside the `app/` directory
+
+### Initial Routes (Tentative)
+- Authentication
+  - Login
+  - Signup
+- Dashboard
+- Battery Details
+- Settings
+
+Navigation structure will be finalized once core screens and user flows are clearly defined.
+
+
+---
+## High-Level Data Flow
+
+```markdown
+Battery Hardware
+        ↓
+ESP32 Controller
+        ↓ (Bluetooth / BLE)
+React Native Mobile App
+        ↓ (REST API)
+Backend Service
+```
+
+- ESP32 transmits live battery telemetry to the mobile app via Bluetooth (BLE)
+- Mobile app reads, parses, and displays real-time battery data
+- Mobile app forwards relevant battery data to the backend for persistence and analytics
+- User authentication is handled independently using Firebase Authentication
+
+---
+
+## Error, Loading & Empty States
+- Global handling for:
+  - API failures
+  - Authentication errors
+  - No data / disconnected battery
+- Consistent loading indicators across screens
+- User-friendly fallback messages
