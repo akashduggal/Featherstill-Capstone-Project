@@ -46,6 +46,10 @@ root/
 └── utils/                # Helper Functions
 ```
 
+### Component Hierarchy
+
+![Component Hierarchy Diagram](./component_hierarchy_diagram.svg)
+
 ## Navigation Strategy
 
 - Navigation will be implemented using **Expo Router**
@@ -61,6 +65,10 @@ root/
 - Settings
 
 Navigation structure will be finalized once core screens and user flows are clearly defined.
+
+### User Flow Diagram
+
+![User Flow Diagram](./User_Flow_Diagram.png)
 
 
 ---
