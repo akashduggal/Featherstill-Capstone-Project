@@ -22,7 +22,7 @@ This project is developed by:
 
 *   **Akash Duggal**
 *   **Suryansh Bhupesh Purohit**
-*   *[Collaborator Name]*
+*   **Karan Jignesh Patwa**
 *   *[Collaborator Name]*
 *   *[Collaborator Name]*
 
