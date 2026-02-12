@@ -14,9 +14,10 @@ export default function Home() {
         <Typography variant="h2">Navigation</Typography>
 
         <View style={styles.buttonGroup}>
-          <Button title="Signup" onPress={() => router.push("/signup")} style={styles.mb} />
-          <Button title="Dashboard" onPress={() => router.push("/dashboard")} style={styles.mb} />
+          <Button title="Signup" onPress={() => router.push("/signup")} />
+          <Button title="Dashboard" onPress={() => router.push("/dashboard")} />
           <Button title="Settings" onPress={() => router.push("/settings")} />
+          <Button title="Login" onPress={() => router.push("/login")} />
         </View>
       </Card>
       <Card style={styles.section}>
@@ -33,10 +34,10 @@ export default function Home() {
         />
 
         <View style={styles.buttonGroup}>
-          <Button title="Primary Button" onPress={() => {}} style={styles.mb} />
-          <Button title="Secondary" variant="secondary" onPress={() => {}} style={styles.mb} />
-          <Button title="Outline" variant="outline" onPress={() => {}} style={styles.mb} />
-          <Button title="Danger" variant="danger" onPress={() => {}} />
+          <Button title="Primary Button" onPress={() => { }} style={styles.mb} />
+          <Button title="Secondary" variant="secondary" onPress={() => { }} style={styles.mb} />
+          <Button title="Outline" variant="outline" onPress={() => { }} style={styles.mb} />
+          <Button title="Danger" variant="danger" onPress={() => { }} />
         </View>
       </Card>
 
@@ -62,5 +63,6 @@ const styles = StyleSheet.create({
   },
   buttonGroup: {
     marginTop: 10,
+    gap: 10,
   },
 });

@@ -1,13 +1,13 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 
-export const Typography = ({ 
-  children, 
-  variant = 'body', 
-  color, 
+export const Typography = ({
+  children,
+  variant = 'body',
+  color,
   align = 'left',
   style,
-  ...props 
+  ...props
 }) => {
   const getStyle = () => {
     switch (variant) {
@@ -20,9 +20,9 @@ export const Typography = ({
   };
 
   return (
-    <Text 
+    <Text
       style={[
-        getStyle(), 
+        getStyle(),
         { textAlign: align },
         color && { color },
         style
