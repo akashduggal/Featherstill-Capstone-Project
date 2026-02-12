@@ -1,14 +1,24 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Button, Input, Card, Typography } from '../components';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 
 export default function Home() {
   const [inputValue, setInputValue] = useState('');
+  const router = useRouter();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Typography variant="h1" align="center">Featherstill</Typography>
-      
+      <Card style={styles.section}>
+        <Typography variant="h2">Navigation</Typography>
+
+        <View style={styles.buttonGroup}>
+          <Button title="Signup" onPress={() => router.push("/signup")} style={styles.mb} />
+          <Button title="Dashboard" onPress={() => router.push("/dashboard")} style={styles.mb} />
+          <Button title="Settings" onPress={() => router.push("/settings")} />
+        </View>
+      </Card>
       <Card style={styles.section}>
         <Typography variant="h2">Component Showcase</Typography>
         <Typography variant="body" style={styles.mb}>
