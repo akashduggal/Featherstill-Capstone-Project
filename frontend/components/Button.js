@@ -1,14 +1,14 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 
-export const Button = ({ 
-  title, 
-  onPress, 
-  variant = 'primary', 
-  disabled = false, 
+export const Button = ({
+  title,
+  onPress,
+  variant = 'primary',
+  disabled = false,
   loading = false,
   style,
-  textStyle 
+  textStyle
 }) => {
   const getBackgroundColor = () => {
     if (disabled) return '#ccc';
