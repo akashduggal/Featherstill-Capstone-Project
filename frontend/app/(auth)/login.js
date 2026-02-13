@@ -30,7 +30,11 @@ export default function LoginScreen() {
     const handleGuestAccess = () => {
         console.log('Continue as Guest Pressed');
         router.replace('/(tabs)/home');
+    };
 
+    const handleSignUp = () => {
+        console.log('Continue as Guest Pressed');
+        router.push('/(auth)/signup');
     };
 
     return (
@@ -69,6 +73,21 @@ export default function LoginScreen() {
                     <Ionicons name="logo-google" size={20} color={colors.text} style={styles.btnIcon} />
                     <Text style={[styles.googleButtonText, { color: colors.text }]}>
                         Sign in with Google
+                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[
+                        styles.signupButton,
+                        {
+                            borderColor: colors.tint,
+                        }
+                    ]}
+                    onPress={handleSignUp}
+                    activeOpacity={0.8}
+                >
+                    <Text style={[styles.signupButtonText, { color: colors.tint }]}>
+                        Create an account
                     </Text>
                 </TouchableOpacity>
 
@@ -172,6 +191,20 @@ const styles = StyleSheet.create({
     versionText: {
         fontSize: 12,
     },
+    signupButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+},
+signupButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+},
+
 });
 
 
