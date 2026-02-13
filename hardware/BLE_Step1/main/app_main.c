@@ -1,9 +1,22 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "nvs_flash.h"
 #include "esp_err.h"
 
 #include "ble_stack.h"
+#include "ble_batt_mock.h"
+
+static void mock_sender_task(void *arg)
+{
+    (void)arg;
+
+    while (1) {
+        // Sends only if connected + notifications enabled
+        ble_batt_mock_notify_mock();
+        vTaskDelay(pdMS_TO_TICKS(1000));  // 1 sample/sec
+    }
+}
 
 void app_main(void)
 {
@@ -15,8 +28,11 @@ void app_main(void)
 
     ble_stack_start();
 
+    // Start mock sender
+    xTaskCreate(mock_sender_task, "mock_sender", 4096, NULL, 5, NULL);
+
+    // app_main can just idle now
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
-

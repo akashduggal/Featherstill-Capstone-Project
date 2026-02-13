@@ -2,7 +2,7 @@
 
 #include <string.h>
 #include "esp_log.h"
-
+#include "ble_batt_mock.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 
@@ -13,7 +13,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
-// These two headers fix ble_store_config_init() declaration:
+
 #include "store/config/ble_store_config.h"
 extern void ble_store_config_init(void);
 
@@ -42,6 +42,8 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
         if (event->connect.status == 0) {
             s_conn_handle = event->connect.conn_handle;
             ESP_LOGI(TAG, "Connected (handle=%d)", s_conn_handle);
+
+            ble_batt_mock_on_connect(s_conn_handle);
         } else {
             ESP_LOGW(TAG, "Connect failed; status=%d", event->connect.status);
             start_advertising();
@@ -51,8 +53,15 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "Disconnected; reason=%d", event->disconnect.reason);
         s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
-        start_advertising();   // accept more connections
+
+        ble_batt_mock_on_disconnect();
+
+        start_advertising();
         return 0;
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        ble_batt_mock_on_subscribe(event->subscribe.attr_handle,
+                                event->subscribe.cur_notify);
+        return 0;   
 
     case BLE_GAP_EVENT_ENC_CHANGE:
         // This usually indicates pairing/encryption completed successfully
@@ -124,17 +133,20 @@ void ble_stack_start(void)
 
     ble_svc_gap_device_name_set("ESP32_STEP1");
 
-    // Pairing/bonding config:
+    
     ble_hs_cfg.sm_bonding = 1;
     ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_mitm = 0;
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
 
-    // Persist bonds/keys in flash
+    
     ble_store_config_init();
 
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.sync_cb = on_sync;
+
+    
+    ble_batt_mock_register();
 
     nimble_port_freertos_init(host_task);
 
