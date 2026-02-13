@@ -23,8 +23,9 @@ This project is developed by:
 *   **Akash Duggal**
 *   **Suryansh Bhupesh Purohit**
 *   **Karan Jignesh Patwa**
-*   *[Collaborator Name]*
-*   *[Collaborator Name]*
+*   **Rushi Rajubhai Patel**
+*   **Yash Snehalbhai Shah**
+*   **Anadi Dewan**
 
 ---
 *Arizona State University | SER 517 | Spring 2026*
