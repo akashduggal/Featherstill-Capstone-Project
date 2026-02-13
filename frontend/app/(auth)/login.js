@@ -12,8 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-// Make sure this path is correct based on your folder structure
-import { Colors } from '../constants/Colors';
+import { Colors } from '../../constants/Colors';
 
 const { width } = Dimensions.get('window');
 
@@ -25,12 +24,13 @@ export default function LoginScreen() {
 
     const handleGoogleSignIn = () => {
         console.log('Google Sign-In Pressed');
-        router.replace('/dashboard');
+        router.replace('/(tabs)/home');
     };
 
     const handleGuestAccess = () => {
         console.log('Continue as Guest Pressed');
-        router.replace('/dashboard');
+        router.replace('/(tabs)/home');
+
     };
 
     return (

@@ -1,6 +1,9 @@
 import { View, Text, Button, StyleSheet } from "react-native";
+import { useRouter } from 'expo-router';
 
 export default function Settings() {
+  const router = useRouter();
+  
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Settings</Text>
@@ -8,7 +11,7 @@ export default function Settings() {
       <Text>User: user@example.com</Text>
 
       <Button title="Toggle Notifications" onPress={() => {}} />
-      <Button title="Logout" onPress={() => {}} />
+      <Button title="Logout" onPress={() => {router.replace("/");}} />
     </View>
   );
 }
