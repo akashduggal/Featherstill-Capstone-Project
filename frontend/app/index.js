@@ -1,5 +1,5 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Button, Input, Card, Typography } from '../components';
+import { Button, Input, Card, Typography, LoadingState, ErrorState, EmptyState } from '../components';
 import { useState } from 'react';
 
 export default function Home() {
@@ -10,10 +10,34 @@ export default function Home() {
       <Typography variant="h1" align="center">Featherstill</Typography>
       
       <Card style={styles.section}>
-        <Typography variant="h2">Component Showcase</Typography>
+        <Typography variant="h2">State Components</Typography>
         <Typography variant="body" style={styles.mb}>
-          This is a demonstration of our reusable UI components.
+          Standardized states for loading, error, and empty data scenarios.
         </Typography>
+      </Card>
+
+      <Card style={styles.section}>
+        <Typography variant="h3">Loading State</Typography>
+        <LoadingState />
+      </Card>
+
+      <Card style={styles.section}>
+        <Typography variant="h3">Error State</Typography>
+        <ErrorState 
+          onRetry={() => alert('Retrying...')} 
+        />
+      </Card>
+
+      <Card style={styles.section}>
+        <Typography variant="h3">Empty State</Typography>
+        <EmptyState 
+          actionLabel="Create New"
+          onAction={() => alert('Creating...')}
+        />
+      </Card>
+
+      <Card style={styles.section}>
+        <Typography variant="h2">Input & Actions</Typography>
 
         <Input
           label="Example Input"
