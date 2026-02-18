@@ -6,6 +6,7 @@
 
 #include "ble_stack.h"
 #include "ble_batt_mock.h"
+#include "storage.h"
 
 static void mock_sender_task(void *arg)
 {
@@ -27,6 +28,9 @@ void app_main(void)
     }
 
     ble_stack_start();
+
+    /* Initialize and mount LittleFS */
+    storage_init();
 
     // Start mock sender
     xTaskCreate(mock_sender_task, "mock_sender", 4096, NULL, 5, NULL);
