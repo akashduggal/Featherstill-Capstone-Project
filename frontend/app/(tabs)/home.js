@@ -9,7 +9,7 @@ export default function Home() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Typography variant="h1" align="center">Featherstill</Typography>
+      <Typography variant="h1" align="center">Fetherstill</Typography>
       <Card style={styles.section}>
         <Typography variant="h2">Component Showcase</Typography>
         <Typography variant="body" style={styles.mb}>

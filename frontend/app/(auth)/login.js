@@ -49,7 +49,7 @@ export default function LoginScreen() {
                 </View>
 
                 <Text style={[styles.brandTitle, { color: colors.text }]}>
-                    Featherstill
+                    Fetherstill
                 </Text>
                 <Text style={[styles.brandSubtitle, { color: colors.tabIconDefault }]}>
                     BMS Monitor
@@ -192,18 +192,18 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     signupButton: {
-    width: '100%',
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-},
-signupButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-},
+        width: '100%',
+        height: 56,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+    },
+    signupButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
 
 });
 

@@ -1,6 +1,6 @@
-# Featherstill Frontend
+# Fetherstill Frontend
 
-This directory contains the React Native mobile application for the Featherstill project, built with Expo.
+This directory contains the React Native mobile application for the Fetherstill project, built with Expo.
 
 ## Prerequisites
 

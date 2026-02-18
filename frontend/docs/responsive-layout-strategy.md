@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document defines the responsive layout strategy for the Featherstill mobile application.
+This document defines the responsive layout strategy for the Fetherstill mobile application.
 
 The application is primarily designed for **mobile devices**, with support for both portrait and landscape orientations. Tablet optimization is considered future scope but has been accounted for in architectural decisions.
 
