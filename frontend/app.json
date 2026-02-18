@@ -8,7 +8,8 @@
     "userInterfaceStyle": "automatic",
     "scheme": "fetherstill",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-web-browser"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
