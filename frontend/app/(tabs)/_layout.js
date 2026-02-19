@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 export default function TabsLayout() {
   return (
     <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="home"
         options={{
           title: "Home",
@@ -12,7 +12,7 @@ export default function TabsLayout() {
             <Ionicons name="home" size={size} color={color} />
           ),
         }}
-      />
+      /> */}
 
       <Tabs.Screen
         name="dashboard"

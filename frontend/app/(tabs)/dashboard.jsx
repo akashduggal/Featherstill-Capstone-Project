@@ -5,9 +5,12 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Colors } from "../../constants/Colors";
+import { useAuth } from "../../context/AuthContext";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // ---------------------------------------------------------------------------
 // Static battery data — will be replaced with live BLE data from ESP32 later
@@ -133,6 +136,7 @@ function CellVoltage({ index, voltage }) {
 // ---------------------------------------------------------------------------
 export default function Dashboard() {
   const router = useRouter();
+  const { user } = useAuth();
   const d = BATTERY_DATA;
 
   return (
@@ -140,6 +144,15 @@ export default function Dashboard() {
       style={styles.scrollView}
       contentContainerStyle={styles.container}
     >
+      {user && (
+          <View style={styles.userInfoContainer}>
+              <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+              <View>
+                  <Text style={styles.userName}>{user.displayName}</Text>
+                  <Text style={styles.email}>{user.email}</Text>
+              </View>
+          </View>
+      )}
       {/* ── Title ──────────────────────────────────────────────── */}
       <Text style={styles.title}>Fetherstill Data Console</Text>
 
@@ -211,6 +224,28 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 50,
     paddingBottom: 40,
+  },
+
+  /* User Info */
+  userInfoContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 20,
+  },
+  avatar: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      marginRight: 10,
+  },
+  userName: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: Colors.dark.text,
+  },
+  email: {
+      fontSize: 14,
+      color: "gray",
   },
 
   /* Title / Subtitle */
@@ -310,5 +345,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.dark.text,
   },
-
 });

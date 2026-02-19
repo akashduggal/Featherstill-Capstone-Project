@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     StyleSheet,
     View,
     Text,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     useColorScheme,
     Dimensions,
+    ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import auth from '@react-native-firebase/auth';
+import { useAuth } from '../../context/AuthContext';
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from '../../constants/Colors';
 
 const { width } = Dimensions.get('window');
@@ -21,15 +25,61 @@ export default function LoginScreen() {
     const colorScheme = useColorScheme();
     const theme = colorScheme === 'dark' ? 'dark' : 'light';
     const colors = Colors[theme];
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isGuestLoading, setIsGuestLoading] = useState(false);
+    const { login, loginAsGuest } = useAuth();
 
-    const handleGoogleSignIn = () => {
-        console.log('Google Sign-In Pressed');
-        router.replace('/(tabs)/home');
+    useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        });
+    }, []);
+
+    const handleGoogleSignIn = async () => {
+        if (isGoogleLoading || isGuestLoading) return;
+
+        setIsGoogleLoading(true);
+        try {
+            await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+            const userInfo = await GoogleSignin.signIn();
+            console.log('User Info from Google Sign In:', userInfo);
+            if (!userInfo.data || !userInfo.data.idToken) {
+              Alert.alert('Login Error', 'Google Sign-In failed to return an ID token. Please check your app configuration.');
+              setIsGoogleLoading(false);
+              return;
+            }
+            const googleCredential = auth.GoogleAuthProvider.credential(userInfo.data.idToken);
+            await auth().signInWithCredential(googleCredential);
+            
+            router.replace('/(tabs)/dashboard');
+
+        } catch (error) {
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                // user cancelled the login flow
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                // operation (e.g. sign in) is in progress already
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                Alert.alert('Error', 'Google Play Services not available');
+            } else {
+                console.error('Google Sign-In Error', error);
+                Alert.alert('Error', 'Failed to sign in with Google');
+            }
+        } finally {
+            setIsGoogleLoading(false);
+        }
     };
 
-    const handleGuestAccess = () => {
-        console.log('Continue as Guest Pressed');
-        router.replace('/(tabs)/home');
+    const handleGuestAccess = async () => {
+        if (isGoogleLoading || isGuestLoading) return;
+        setIsGuestLoading(true);
+        try {
+            await loginAsGuest();
+            router.replace('/(tabs)/dashboard');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to continue as guest.');
+        } finally {
+            setIsGuestLoading(false);
+        }
     };
 
     const handleSignUp = () => {
@@ -70,15 +120,19 @@ export default function LoginScreen() {
                     onPress={handleGoogleSignIn}
                     activeOpacity={0.8}
                 >
-                    <Ionicons name="logo-google" size={20} color={colors.text} style={styles.btnIcon} />
+                    {isGoogleLoading ? (
+                        <ActivityIndicator size="small" color={colors.text} style={styles.btnIcon} />
+                    ) : (
+                        <Ionicons name="logo-google" size={20} color={colors.text} style={styles.btnIcon} />
+                    )}
                     <Text style={[styles.googleButtonText, { color: colors.text }]}>
-                        Sign in with Google
+                        {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
                     </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                     style={[
-                        styles.signupButton,
+                        // styles.signupButton,
                         {
                             borderColor: colors.tint,
                         }
@@ -87,7 +141,7 @@ export default function LoginScreen() {
                     activeOpacity={0.8}
                 >
                     <Text style={[styles.signupButtonText, { color: colors.tint }]}>
-                        Create an account
+                        or
                     </Text>
                 </TouchableOpacity>
 
@@ -97,9 +151,13 @@ export default function LoginScreen() {
                     onPress={handleGuestAccess}
                     activeOpacity={0.6}
                 >
-                    <Text style={[styles.guestButtonText, { color: colors.tint }]}>
-                        Continue as Guest
-                    </Text>
+                    {isGuestLoading ? (
+                        <ActivityIndicator size="small" color={colors.tint} />
+                    ) : (
+                        <Text style={[styles.guestButtonText, { color: colors.tint }]}>
+                            Continue as Guest
+                        </Text>
+                    )}
                 </TouchableOpacity>
             </View>
 

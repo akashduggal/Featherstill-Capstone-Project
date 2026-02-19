@@ -1,4 +1,4 @@
-# Featherstill Capstone Project
+# Fetherstill Capstone Project
 
 ## Overview
 
@@ -6,7 +6,7 @@ This repository contains the source code and documentation for the Capstone Proj
 
 ## Industry Sponsor
 
-This project is proudly sponsored by **Featherstill**, providing industry context and requirements for our solution.
+This project is proudly sponsored by **Fetherstill**, providing industry context and requirements for our solution.
 
 ## Project Structure
 
