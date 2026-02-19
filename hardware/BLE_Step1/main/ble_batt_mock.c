@@ -28,6 +28,12 @@ static uint16_t s_conn = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_live_val_handle = 0;
 static bool s_live_notify = false;
 
+static uint16_t s_cmd_val_handle = 0;
+static volatile bool s_backlog_requested = false;
+
+bool ble_backlog_requested(void) { return s_backlog_requested; }
+void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+
 bool ble_batt_mock_is_subscribed(void)
 {
     return s_live_notify && s_conn != BLE_HS_CONN_HANDLE_NONE;
@@ -85,6 +91,32 @@ static void build_mock(battery_log_t *r)
     r->soc = (uint8_t)rand_u16(0, 100);
 }
 
+static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                         struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    uint8_t cmd = 0;
+    int rc = os_mbuf_copydata(ctxt->om, 0, 1, &cmd);
+    if (rc != 0) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
+    if (cmd == 0x01) {
+        s_backlog_requested = true;
+        ESP_LOGI(TAG, "Backlog requested (CMD=0x01)");
+    } else {
+        ESP_LOGW(TAG, "Unknown CMD=0x%02X", cmd);
+    }
+
+    return 0;
+}
 
 static int live_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                           struct ble_gatt_access_ctxt *ctxt, void *arg)
@@ -118,6 +150,7 @@ void ble_batt_mock_notify_mock(void)
 
 // Service UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee0
 // LIVE char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1
+// CMD  char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2
 static const struct ble_gatt_svc_def g_svcs[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -129,9 +162,15 @@ static const struct ble_gatt_svc_def g_svcs[] = {
                 .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_live_val_handle,
             },
+            {
+                .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe2),
+                .access_cb = cmd_access_cb,
+                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
+                .val_handle = &s_cmd_val_handle,
+            },
             { 0 }
         }
-    },
+            },
     { 0 }
 };
 
@@ -163,6 +202,7 @@ void ble_batt_mock_on_disconnect(void)
 {
     s_conn = BLE_HS_CONN_HANDLE_NONE;
     s_live_notify = false;
+    s_backlog_requested = false;
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
