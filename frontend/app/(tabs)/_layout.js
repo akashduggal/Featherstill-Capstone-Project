@@ -25,6 +25,16 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
+        name="bluetooth"
+        options={{
+          title: "Bluetooth",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bluetooth" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
