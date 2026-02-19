@@ -62,7 +62,7 @@ static void mock_sender_task(void *arg)
 
         // ---- Task 2.1 debug proof: did phone request backlog? ----
         if (ble_backlog_requested()) {
-            ESP_LOGI("APP", "Main saw backlog request!");
+            printf("Main saw backlog request!\n");
             ble_backlog_clear_request();
         }
 
