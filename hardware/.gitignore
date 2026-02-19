@@ -1,0 +1,12 @@
+# Build output
+build/
+
+# Component manager cache
+managed_components/
+
+# IDE files
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
