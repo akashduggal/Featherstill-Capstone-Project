@@ -7,52 +7,84 @@ import { useAuth } from '../../context';
 export default function Home() {
   const [inputValue, setInputValue] = useState('');
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Typography variant="h1" align="center">Fetherstill</Typography>
+      <Typography variant='h1' align='center'>
+        Fetherstill
+      </Typography>
       <Card style={[styles.section, styles.profileCard]}>
-          <View style={styles.profileHeader}>
-            {user?.photoURL ? (
-              <Image source={{ uri: user.photoURL }} style={styles.avatar} />
-            ) : (
+        <View style={styles.profileHeader}>
+          {isGuest ? (
+            <>
               <View style={styles.placeholderAvatar}>
-                <Typography variant="h2" style={{ color: '#fff' }}>
-                  {user?.displayName ? user.displayName.charAt(0) : '?'}
+                <Typography variant='h2' style={{ color: '#fff', marginBottom:0 }}>
+                  G
                 </Typography>
               </View>
-            )}
-            <View style={styles.profileText}>
-              <Typography variant="h2">{user?.displayName || 'User'}</Typography>
-              <Typography variant="body">{user?.email}</Typography>
-            </View>
-          </View>
+              <View style={styles.profileText}>
+                <Typography variant='h2'>Guest User</Typography>
+                <Typography variant='caption'>Unregistered Account</Typography>
+              </View>
+            </>
+          ) : (
+            <>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={styles.avatar} />
+              ) : (
+                <View style={styles.placeholderAvatar}>
+                  <Typography variant='h2' style={{ color: '#fff', marginBottom:0 }}>
+                    {user?.displayName ? user.displayName.charAt(0) : '?'}
+                  </Typography>
+                </View>
+              )}
+              <View style={styles.profileText}>
+                <Typography variant='h2'>
+                  {user?.displayName || 'User'}
+                </Typography>
+                <Typography variant='body'>{user?.email}</Typography>
+              </View>
+            </>
+          )}
+        </View>
       </Card>
       <Card style={styles.section}>
-        <Typography variant="h2">Component Showcase</Typography>
-        <Typography variant="body" style={styles.mb}>
+        <Typography variant='h2'>Component Showcase</Typography>
+        <Typography variant='body' style={styles.mb}>
           This is a demonstration of our reusable UI components.
         </Typography>
 
         <Input
-          label="Example Input"
-          placeholder="Type something..."
+          label='Example Input'
+          placeholder='Type something...'
           value={inputValue}
           onChangeText={setInputValue}
         />
 
         <View style={styles.buttonGroup}>
-          <Button title="Primary Button" onPress={() => { }} style={styles.mb} />
-          <Button title="Secondary" variant="secondary" onPress={() => { }} style={styles.mb} />
-          <Button title="Outline" variant="outline" onPress={() => { }} style={styles.mb} />
-          <Button title="Danger" variant="danger" onPress={() => { }} />
+          <Button title='Primary Button' onPress={() => {}} style={styles.mb} />
+          <Button
+            title='Secondary'
+            variant='secondary'
+            onPress={() => {}}
+            style={styles.mb}
+          />
+          <Button
+            title='Outline'
+            variant='outline'
+            onPress={() => {}}
+            style={styles.mb}
+          />
+          <Button title='Danger' variant='danger' onPress={() => {}} />
         </View>
       </Card>
 
-      <Card variant="elevated" style={styles.section}>
-        <Typography variant="h3">Elevated Card</Typography>
-        <Typography variant="caption">This card has a shadow elevation.</Typography>
+      <Card variant='elevated' style={styles.section}>
+        <Typography variant='h3'>Elevated Card</Typography>
+        <Typography variant='caption'>
+          This card has a shadow elevation.
+        </Typography>
       </Card>
     </ScrollView>
   );
@@ -85,7 +117,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#007AFF', // You can change this to colors.tint
+    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
