@@ -11,12 +11,27 @@
 
 #include <stdio.h>
 #include <time.h>
+#include <inttypes.h>
 
 #include "battery_log.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <dirent.h>
 
+static void list_littlefs_dir(void)
+{
+    DIR *d = opendir("/littlefs");
+    if (!d) {
+        ESP_LOGE("FS", "opendir /littlefs failed");
+        return;
+    }
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        ESP_LOGI("FS", "found: %s", e->d_name);
+    }
+    closedir(d);
+}
 static const char *TAGT = "LOG_TEST";
 
 static void battery_log_test_13(void)
@@ -131,14 +146,17 @@ void app_main(void)
         nvs_flash_init();
     }
 
-    ble_stack_start();
+
 
     /* Initialize and mount LittleFS */
     storage_init();
+    
+    ble_stack_start();
+    list_littlefs_dir();
     battery_log_test_13();   
-
+    list_littlefs_dir();
     // Run battery log append test
-    test_battery_log_append();
+    // test_battery_log_append();
 
     // Start mock sender
     xTaskCreate(mock_sender_task, "mock_sender", 4096, NULL, 5, NULL);
