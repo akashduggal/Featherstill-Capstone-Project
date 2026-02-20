@@ -47,12 +47,24 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUser(null);
-    } finally {
-      setLoading(false);
+      const currentUser = auth().currentUser;
+      const isGoogleLogin = currentUser?.providerData.some(
+        (provider) => provider.providerId === 'google.com'
+      );
+
+      await auth().signOut();
+      
+      if (isGoogleLogin) {
+        try {
+          await GoogleSignin.revokeAccess();
+          await GoogleSignin.signOut();
+        } catch (googleError) {
+          console.log('Google SDK cleanup:', googleError);
+        }
+      }
+    } catch (error) {
+      console.error('Logout Error:', error);
     }
   };
 
