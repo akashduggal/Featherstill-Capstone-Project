@@ -24,11 +24,12 @@ export default function LoginScreen() {
     const colorScheme = useColorScheme();
     const theme = colorScheme === 'dark' ? 'dark' : 'light';
     const colors = Colors[theme];
-    const { loginWithGoogle } = useAuth();
+    const { loginWithGoogle, loginAsGuest } = useAuth();
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isGuestLoading, setIsGuestLoading] = useState(false);
 
     const handleGoogleSignIn = async() => {
-       if (isGoogleLoading) return;
+       if (isGoogleLoading || isGuestLoading) return;
         setIsGoogleLoading(true);
         try {
             await loginWithGoogle();
@@ -40,14 +41,17 @@ export default function LoginScreen() {
         }
     };
 
-    const handleGuestAccess = () => {
-        console.log('Continue as Guest Pressed');
-        router.replace('/(tabs)/home');
-    };
-
-    const handleSignUp = () => {
-        console.log('Continue as Guest Pressed');
-        router.push('/(auth)/signup');
+    const handleGuestAccess = async () => {
+        if (isGoogleLoading || isGuestLoading) return;
+        setIsGuestLoading(true);
+        try {
+            await loginAsGuest();
+            router.replace('/(tabs)/home');
+        } catch (error) {
+            Alert.alert('Login Failed', 'Could not continue as guest.');
+        } finally {
+            setIsGuestLoading(false);
+        }
     };
 
     return (
@@ -99,9 +103,11 @@ export default function LoginScreen() {
                     onPress={handleGuestAccess}
                     activeOpacity={0.6}
                 >
-                    <Text style={[styles.guestButtonText, { color: colors.tint }]}>
-                        Continue as Guest
-                    </Text>
+                    {isGuestLoading ? (
+                         <ActivityIndicator size="small" color={colors.tint} />
+                    ) : (
+                        <Text style={[styles.guestButtonText, { color: colors.tint }]}>Continue as Guest</Text>
+                    )}
                 </TouchableOpacity>
             </View>
 

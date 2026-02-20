@@ -4,7 +4,7 @@ import { useAuth } from "../../context";
 
 export default function Settings() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isGuest } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -20,7 +20,7 @@ export default function Settings() {
       <Text style={styles.title}>Settings</Text>
 
       <Text style={styles.emailText}>
-        User: {user?.email || 'Unknown Email'}
+        User: {isGuest ? 'Guest User' : user?.email || 'Unknown Email'}
       </Text>
 
       <Button title="Logout" color="red" onPress={handleLogout} />

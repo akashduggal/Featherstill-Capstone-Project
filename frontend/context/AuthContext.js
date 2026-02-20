@@ -12,6 +12,7 @@ const AuthContext = createContext({
   loginWithGoogle: async () => {},
   loginAsGuest: async () => {},
   logout: async () => {},
+  loginAsGuest: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -46,6 +47,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginAsGuest = async () => {
+    try {
+      await auth().signInAnonymously();
+    } catch (error) {
+      console.error('Guest Sign-In Error:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       const currentUser = auth().currentUser;
@@ -73,6 +83,8 @@ export const AuthProvider = ({ children }) => {
       user, 
       loading, 
       loginWithGoogle, 
+      isGuest: user?.isAnonymous || false,
+      loginAsGuest,
       logout 
     }}>
       {children}
