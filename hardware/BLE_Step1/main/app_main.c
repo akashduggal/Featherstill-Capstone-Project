@@ -126,18 +126,40 @@ static void mock_sender_task(void *arg)
     (void)arg;
 
     while (1) {
-        // Sends only if connected + notifications enabled
-        ble_batt_mock_notify_mock();
 
-        // ---- Task 2.1 debug proof: did phone request backlog? ----
+        // ---- Task 2.2: if backlog requested, send all stored records ----
         if (ble_backlog_requested()) {
-            printf("Main saw backlog request!\n");
             ble_backlog_clear_request();
+
+            int count = battery_log_count();
+            printf("BACKLOG: start count=%d\n", count);
+
+            for (int i = 0; i < count; i++) {
+                battery_log_t rec;
+                if (!battery_log_read(i, &rec)) {
+                    printf("BACKLOG: read failed i=%d\n", i);
+                    continue;
+                }
+
+                // Will only notify if BACKLOG notify is enabled
+                int rc = ble_batt_mock_notify_backlog(&rec);
+                if (rc != 0) {
+                    printf("BACKLOG: notify rc=%d i=%d\n", rc, i);
+                }
+
+                vTaskDelay(pdMS_TO_TICKS(15)); // 10–20ms recommended
+            }
+
+            printf("BACKLOG: done\n");
         }
 
-        vTaskDelay(pdMS_TO_TICKS(5000));  // 1 sample/5 sec  (fix comment)
+        // Normal live behavior
+        ble_batt_mock_notify_mock();
+        vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
+
+
 void app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
@@ -146,18 +168,9 @@ void app_main(void)
         nvs_flash_init();
     }
 
+    storage_init();     // mount first
+    ble_stack_start();  // start BLE after FS is ready
 
-
-    /* Initialize and mount LittleFS */
-    storage_init();
-    
-    ble_stack_start();
-    list_littlefs_dir();
-    battery_log_test_13();   
-    list_littlefs_dir();
-    // Run battery log append test
-    // test_battery_log_append();
-
-    // Start mock sender
+    // (Remove test_battery_log_append now — already tested)
     xTaskCreate(mock_sender_task, "mock_sender", 4096, NULL, 5, NULL);
 }
