@@ -4,6 +4,8 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_random.h"
+#include "battery_log.h"
+
 
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
@@ -12,17 +14,6 @@
 
 static const char *TAG = "BATT_MOCK";
 
-typedef struct __attribute__((packed)) {
-    uint32_t timestamp_s;
-    uint16_t cell_mv[16];
-    uint16_t pack_total_mv;
-    uint16_t pack_ld_mv;
-    uint16_t pack_sum_active_mv;
-    int16_t  current_ma;
-    int16_t  temp_ts1_c_x100;
-    int16_t  temp_int_c_x100;
-    uint8_t  soc;
-} battery_log_t;
 
 static uint16_t s_conn = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_live_val_handle = 0;
@@ -30,6 +21,9 @@ static bool s_live_notify = false;
 
 static uint16_t s_cmd_val_handle = 0;
 static volatile bool s_backlog_requested = false;
+
+static uint16_t s_backlog_val_handle = 0;
+static bool s_backlog_notify = false;
 
 bool ble_backlog_requested(void) { return s_backlog_requested; }
 void ble_backlog_clear_request(void) { s_backlog_requested = false; }
@@ -147,10 +141,31 @@ void ble_batt_mock_notify_mock(void)
         ESP_LOGW(TAG, "notify rc=%d", rc);
     }
 }
+int ble_batt_mock_notify_backlog(const battery_log_t *rec)
+{
+    if (s_conn == BLE_HS_CONN_HANDLE_NONE || !s_backlog_notify) {
+        return -1;
+    }
+
+    int rc = ble_gattc_notify_custom(
+        s_conn,
+        s_backlog_val_handle,
+        (void *)rec,
+        sizeof(*rec)
+    );
+
+    if (rc != 0) {
+        ESP_LOGW(TAG, "BACKLOG notify failed rc=%d", rc);
+    }
+
+    return rc;
+}
+
 
 // Service UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee0
 // LIVE char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1
 // CMD  char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2
+// BACKLOG char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee3
 static const struct ble_gatt_svc_def g_svcs[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -168,9 +183,15 @@ static const struct ble_gatt_svc_def g_svcs[] = {
                 .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
                 .val_handle = &s_cmd_val_handle,
             },
+            {
+                .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe3),
+                .access_cb = live_access_cb, 
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+                .val_handle = &s_backlog_val_handle,
+            },
             { 0 }
         }
-            },
+    },
     { 0 }
 };
 
@@ -202,6 +223,7 @@ void ble_batt_mock_on_disconnect(void)
 {
     s_conn = BLE_HS_CONN_HANDLE_NONE;
     s_live_notify = false;
+    s_backlog_notify = false;
     s_backlog_requested = false;
 }
 
@@ -209,6 +231,9 @@ void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
 {
     if (attr_handle == s_live_val_handle) {
         s_live_notify = notify_enabled;
-        ESP_LOGI(TAG, "LIVE notify=%d", (int)notify_enabled);
+        ESP_LOGI(TAG, "LIVE notify %s", notify_enabled ? "ENABLED" : "DISABLED");
+    } else if (attr_handle == s_backlog_val_handle) {
+        s_backlog_notify = notify_enabled;
+        ESP_LOGI(TAG, "BACKLOG notify %s", notify_enabled ? "ENABLED" : "DISABLED");
     }
 }

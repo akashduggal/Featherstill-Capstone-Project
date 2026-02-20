@@ -57,16 +57,38 @@ static void mock_sender_task(void *arg)
     (void)arg;
 
     while (1) {
-        // Sends only if connected + notifications enabled
+
+        
         ble_batt_mock_notify_mock();
 
-        // ---- Task 2.1 debug proof: did phone request backlog? ----
+        
         if (ble_backlog_requested()) {
-            printf("Main saw backlog request!\n");
+            printf( "Backlog requested, starting send...");
+
+            
+            int count = battery_log_count();
+            printf( "Backlog records available: %d", count);
+
+            battery_log_t rec;
+
+            for (int i = 0; i < count; i++) {
+                
+                
+                if (!battery_log_read(i, &rec)) {
+                    printf("Read failed at index %d", i);
+                    break;
+                }
+
+                ble_batt_mock_notify_backlog(&rec);
+
+                vTaskDelay(pdMS_TO_TICKS(20)); 
+            }
+
             ble_backlog_clear_request();
+            printf("Backlog send finished.");
         }
 
-        vTaskDelay(pdMS_TO_TICKS(5000));  // 1 sample/5 sec  (fix comment)
+        vTaskDelay(pdMS_TO_TICKS(5000));  // 1 sample/5 sec
     }
 }
 void app_main(void)
