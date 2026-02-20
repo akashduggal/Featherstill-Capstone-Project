@@ -1,16 +1,27 @@
 {
   "expo": {
     "owner": "spurohi9",
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "fetherstill",
+    "slug": "fetherstill",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "fetherstill",
+    "scheme": "Fetherstill",
     "plugins": [
       "expo-router",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -18,17 +29,27 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fetherstill.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.fetherstill.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f2dbb045-363b-4265-b451-d0652be1b172"
+      }
     }
   }
 }
