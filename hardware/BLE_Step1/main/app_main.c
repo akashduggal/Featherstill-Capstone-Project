@@ -59,10 +59,16 @@ static void mock_sender_task(void *arg)
     while (1) {
         // Sends only if connected + notifications enabled
         ble_batt_mock_notify_mock();
-        vTaskDelay(pdMS_TO_TICKS(5000));  // 1 sample/sec
+
+        // ---- Task 2.1 debug proof: did phone request backlog? ----
+        if (ble_backlog_requested()) {
+            printf("Main saw backlog request!\n");
+            ble_backlog_clear_request();
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(5000));  // 1 sample/5 sec  (fix comment)
     }
 }
-
 void app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
