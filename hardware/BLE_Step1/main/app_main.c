@@ -124,33 +124,48 @@ static void test_battery_log_append(void)
 static void mock_sender_task(void *arg)
 {
     (void)arg;
+    const TickType_t backlog_cooldown = pdMS_TO_TICKS(250);
 
     while (1) {
 
         // ---- Task 2.2: if backlog requested, send all stored records ----
         if (ble_backlog_requested()) {
-            ble_backlog_clear_request();
+            // If another backlog send is already in progress, ignore this request
+            if (ble_batt_is_sending_backlog()) {
+                ESP_LOGI(TAGT, "BACKLOG: request ignored - already sending");
+                ble_backlog_clear_request();
+            } else {
+                // Mark sending state so further CMDs are ignored
+                ble_batt_set_sending_backlog(true);
+                ble_backlog_clear_request();
 
-            int count = battery_log_count();
-            printf("BACKLOG: start count=%d\n", count);
+                int count = battery_log_count();
+                printf("BACKLOG: start count=%d\n", count);
 
-            for (int i = 0; i < count; i++) {
-                battery_log_t rec;
-                if (!battery_log_read(i, &rec)) {
-                    printf("BACKLOG: read failed i=%d\n", i);
-                    continue;
+                for (int i = 0; i < count; i++) {
+                    battery_log_t rec;
+                    if (!battery_log_read(i, &rec)) {
+                        printf("BACKLOG: read failed i=%d\n", i);
+                        continue;
+                    }
+
+                    // Will only notify if BACKLOG notify is enabled
+                    int rc = ble_batt_mock_notify_backlog(&rec);
+                    if (rc != 0) {
+                        printf("BACKLOG: notify rc=%d i=%d - aborting\n", rc, i);
+                        break; // abort on failure (e.g., disconnect)
+                    }
+
+                    vTaskDelay(pdMS_TO_TICKS(15)); // 10–20ms recommended
                 }
 
-                // Will only notify if BACKLOG notify is enabled
-                int rc = ble_batt_mock_notify_backlog(&rec);
-                if (rc != 0) {
-                    printf("BACKLOG: notify rc=%d i=%d\n", rc, i);
-                }
-
-                vTaskDelay(pdMS_TO_TICKS(15)); // 10–20ms recommended
+                printf("BACKLOG: done\n");
+                // Keep the sending flag set for a short cooldown to absorb
+                // any write-without-response requests that the controller
+                // may have buffered and deliver shortly after the loop.
+                vTaskDelay(backlog_cooldown);
+                ble_batt_set_sending_backlog(false);
             }
-
-            printf("BACKLOG: done\n");
         }
 
         // Normal live behavior

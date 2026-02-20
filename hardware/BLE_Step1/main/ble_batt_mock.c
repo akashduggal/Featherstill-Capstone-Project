@@ -26,9 +26,20 @@ static volatile bool s_backlog_requested = false;
 
 static uint16_t s_backlog_val_handle = 0;
 static bool s_backlog_notify = false;
+static volatile bool s_is_sending_backlog = false;
 
 bool ble_backlog_requested(void) { return s_backlog_requested; }
 void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+
+void ble_batt_set_sending_backlog(bool v)
+{
+    s_is_sending_backlog = v;
+}
+
+bool ble_batt_is_sending_backlog(void)
+{
+    return s_is_sending_backlog;
+}
 
 bool ble_batt_mock_is_subscribed(void)
 {
@@ -105,8 +116,12 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
     }
 
     if (cmd == 0x01) {
-        s_backlog_requested = true;
-        ESP_LOGI(TAG, "Backlog requested (CMD=0x01)");
+        if (s_is_sending_backlog) {
+            ESP_LOGI(TAG, "Backlog request ignored: already sending");
+        } else {
+            s_backlog_requested = true;
+            ESP_LOGI(TAG, "Backlog requested (CMD=0x01)");
+        }
     } else {
         ESP_LOGW(TAG, "Unknown CMD=0x%02X", cmd);
     }
@@ -185,7 +200,11 @@ static const struct ble_gatt_svc_def g_svcs[] = {
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe2),
                 .access_cb = cmd_access_cb,
-                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
+                /* Require Write With Response to avoid client-side buffering
+                   of Write Without Response (Command) that can be delivered
+                   after backlog finishes. This forces the client to use
+                   'Request' which is delivered immediately by the stack. */
+                .flags = BLE_GATT_CHR_F_WRITE,     // ← Changed from BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP
                 .val_handle = &s_cmd_val_handle,
             },
             {
@@ -230,6 +249,7 @@ void ble_batt_mock_on_disconnect(void)
     s_live_notify = false;
     s_backlog_notify = false;
     s_backlog_requested = false;
+    s_is_sending_backlog = false;
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
