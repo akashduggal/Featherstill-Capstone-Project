@@ -33,7 +33,6 @@ export default function LoginScreen() {
         setIsGoogleLoading(true);
         try {
             await loginWithGoogle();
-            router.replace('/(tabs)/home');
         } catch (error) {
             Alert.alert('Login Failed', 'Could not sign in with Google.');
         } finally {
@@ -46,7 +45,6 @@ export default function LoginScreen() {
         setIsGuestLoading(true);
         try {
             await loginAsGuest();
-            router.replace('/(tabs)/home');
         } catch (error) {
             Alert.alert('Login Failed', 'Could not continue as guest.');
         } finally {

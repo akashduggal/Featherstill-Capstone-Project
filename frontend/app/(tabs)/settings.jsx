@@ -9,7 +9,6 @@ export default function Settings() {
   const handleLogout = async () => {
     try {
       await logout(); 
-      router.replace("/");
     } catch (error) {
       console.error("Error logging out:", error);
     }
