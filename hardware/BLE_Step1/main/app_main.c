@@ -12,13 +12,65 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "battery_log.h"
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+static const char *TAGT = "LOG_TEST";
+
+static void battery_log_test_13(void)
+{
+    // 1) Count before
+    int before = battery_log_count();
+    ESP_LOGI(TAGT, "Count BEFORE append = %d", before);
+
+    // 2) Append 10 records
+    battery_log_t rec = {0};
+    rec.timestamp_s = 1000;
+    rec.soc = 10;
+
+    for (int i = 0; i < 10; i++) {
+        rec.timestamp_s = 1000 + i;
+        rec.soc = 10 + i;
+
+        int ok = battery_log_append(&rec);
+        ESP_LOGI(TAGT, "append i=%d -> %s", i, ok == 0 ? "OK" : "FAIL");
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+
+    // 3) Count after
+    int after = battery_log_count();
+    ESP_LOGI(TAGT, "Count AFTER append = %d (expected >= BEFORE+10)", after);
+
+    // 4) Read index 0 and last index (after-1)
+    battery_log_t out0 = {0};
+    if (battery_log_read(0, &out0)) {
+        ESP_LOGI(TAGT, "READ[0] ok ts=%u soc=%u", out0.timestamp_s, out0.soc);
+    } else {
+        ESP_LOGE(TAGT, "READ[0] failed");
+    }
+
+    battery_log_t outLast = {0};
+    if (after > 0 && battery_log_read(after - 1, &outLast)) {
+        ESP_LOGI(TAGT, "READ[last=%d] ok ts=%u soc=%u", after - 1, outLast.timestamp_s, outLast.soc);
+    } else {
+        ESP_LOGE(TAGT, "READ[last] failed (after=%d)", after);
+    }
+
+    // 5) Read out-of-range index (must fail cleanly)
+    battery_log_t outBad = {0};
+    bool bad = battery_log_read(after, &outBad);
+    ESP_LOGI(TAGT, "READ[out_of_range index=%d] -> %s (expected false)", after, bad ? "true" : "false");
+}
+
 static void test_battery_log_append(void)
 {
     printf("\n========== BATTERY LOG TEST ==========\n");
     printf("Testing: Append 5 battery records to /littlefs/battery.bin\n");
     printf("Expected: File size = 5 * %u bytes = %u bytes\n\n", 
            (unsigned)sizeof(battery_log_t), (unsigned)(5 * sizeof(battery_log_t)));
-
+    int before = battery_log_count();
     // Test: Append 5 records
     for (int i = 0; i < 5; i++) {
         battery_log_t rec = {0};
@@ -44,7 +96,9 @@ static void test_battery_log_append(void)
     printf("Records in file: %d\n", count);
     printf("Expected: 5\n");
     
-    if (count == 5) {
+    // append 5
+    
+    if (count == before + 5) {
         printf("✓ TEST PASSED: File size is correct!\n");
     } else {
         printf("✗ TEST FAILED: Expected 5 records, got %d\n", count);
@@ -81,6 +135,7 @@ void app_main(void)
 
     /* Initialize and mount LittleFS */
     storage_init();
+    battery_log_test_13();   
 
     // Run battery log append test
     test_battery_log_append();
