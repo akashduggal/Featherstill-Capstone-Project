@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#include <inttypes.h>   // <-- IMPORTANT for PRIiMAX
 #include "esp_log.h"
 
 static const char *TAG = "BATTERY_LOG";
@@ -19,7 +20,8 @@ int battery_log_append(const battery_log_t *log)
 
     FILE *f = fopen(LOG_FILE, "ab");
     if (!f) {
-        ESP_LOGE(TAG, "Failed to open %s for append: errno=%d (%s)", LOG_FILE, errno, strerror(errno));
+        ESP_LOGE(TAG, "Failed to open %s for append: errno=%d (%s)",
+                 LOG_FILE, errno, strerror(errno));
         return -1;
     }
 
@@ -34,13 +36,15 @@ int battery_log_append(const battery_log_t *log)
     fflush(f); // ensure data written to LITTLEFS
     fclose(f);
 
-    /* Optional: quick sanity stat/log */
+    // Optional: quick sanity stat/log
     struct stat st;
     if (stat(LOG_FILE, &st) == 0) {
-        int count = (int)(st.st_size / sizeof(battery_log_t));
-        ESP_LOGI(TAG, "APPEND ok: file=%s size=%lld bytes, count=%d", LOG_FILE, st.st_size, count);
+        int count = (int)(st.st_size / (off_t)sizeof(battery_log_t));
+        ESP_LOGI(TAG, "APPEND ok: file=%s size=%" PRIiMAX " bytes, count=%d",
+                 LOG_FILE, (intmax_t)st.st_size, count);
     } else {
-        ESP_LOGW(TAG, "APPEND: stat failed after write (errno=%d %s)", errno, strerror(errno));
+        ESP_LOGW(TAG, "APPEND: stat failed after write (errno=%d %s)",
+                 errno, strerror(errno));
     }
 
     return 0;
@@ -51,7 +55,7 @@ int battery_log_count(void)
     struct stat st;
     int ret = stat(LOG_FILE, &st);
     if (ret != 0) {
-        /* File doesn't exist yet or stat failed - treat as 0 records */
+        // File doesn't exist yet or stat failed - treat as 0 records
         if (errno == ENOENT) {
             ESP_LOGD(TAG, "Log file does not exist yet: %s", LOG_FILE);
             return 0;
@@ -62,13 +66,14 @@ int battery_log_count(void)
     }
 
     if (st.st_size < (off_t)sizeof(battery_log_t)) {
-        /* File present but too small to contain a full record -> treat as 0 */
-        ESP_LOGW(TAG, "Log file too small: size=%lld", st.st_size);
+        // File present but too small to contain a full record -> treat as 0
+        ESP_LOGW(TAG, "Log file too small: size=%" PRIiMAX, (intmax_t)st.st_size);
         return 0;
     }
 
-    int count = (int)(st.st_size / sizeof(battery_log_t));
-    ESP_LOGI(TAG, "Log file size: %lld bytes, record count: %d", st.st_size, count);
+    int count = (int)(st.st_size / (off_t)sizeof(battery_log_t));
+    ESP_LOGI(TAG, "Log file size: %" PRIiMAX " bytes, record count: %d",
+             (intmax_t)st.st_size, count);
     return count;
 }
 
@@ -97,26 +102,28 @@ bool battery_log_read(int index, battery_log_t *out)
 
     FILE *f = fopen(LOG_FILE, "rb");
     if (!f) {
-        ESP_LOGE(TAG, "Failed to open %s for read: errno=%d (%s)", LOG_FILE, errno, strerror(errno));
+        ESP_LOGE(TAG, "Failed to open %s for read: errno=%d (%s)",
+                 LOG_FILE, errno, strerror(errno));
         return false;
     }
 
-    /* compute offset and seek */
+    // compute offset and seek
     off_t offset = (off_t)index * (off_t)sizeof(battery_log_t);
     if (fseeko(f, offset, SEEK_SET) != 0) {
-        ESP_LOGE(TAG, "fseeko failed offset=%lld errno=%d (%s)", offset, errno, strerror(errno));
+        ESP_LOGE(TAG, "fseeko failed offset=%" PRIiMAX " errno=%d (%s)",
+                 (intmax_t)offset, errno, strerror(errno));
         fclose(f);
         return false;
     }
 
     size_t nr = fread(out, 1, sizeof(battery_log_t), f);
     fclose(f);
+
     if (nr != sizeof(battery_log_t)) {
         ESP_LOGE(TAG, "fread failed or partial read: got=%u want=%u errno=%d (%s)",
                  (unsigned)nr, (unsigned)sizeof(battery_log_t), errno, strerror(errno));
         return false;
     }
 
-    /* success */
     return true;
 }
