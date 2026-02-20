@@ -11,6 +11,8 @@
 #include "host/ble_uuid.h"
 #include "host/util/util.h"
 #include "os/os_mbuf.h"
+#include "host/ble_hs_mbuf.h"
+
 
 static const char *TAG = "BATT_MOCK";
 
@@ -139,23 +141,26 @@ void ble_batt_mock_notify_mock(void)
     int rc = ble_gatts_notify_custom(s_conn, s_live_val_handle, om);
     if (rc != 0) {
         ESP_LOGW(TAG, "notify rc=%d", rc);
+        os_mbuf_free_chain(om);
     }
 }
+
 int ble_batt_mock_notify_backlog(const battery_log_t *rec)
 {
     if (s_conn == BLE_HS_CONN_HANDLE_NONE || !s_backlog_notify) {
         return -1;
     }
 
-    int rc = ble_gattc_notify_custom(
-        s_conn,
-        s_backlog_val_handle,
-        (void *)rec,
-        sizeof(*rec)
-    );
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(rec, sizeof(*rec));
+    if (!om) {
+        ESP_LOGE(TAG, "ble_hs_mbuf_from_flat failed");
+        return -2;
+    }
 
+    int rc = ble_gatts_notify_custom(s_conn, s_backlog_val_handle, om);
     if (rc != 0) {
         ESP_LOGW(TAG, "BACKLOG notify failed rc=%d", rc);
+        os_mbuf_free_chain(om);   // IMPORTANT: free on error
     }
 
     return rc;
