@@ -5,3 +5,5 @@ export * from './Typography';
 export * from './BatteryIcon';
 export * from './StatTile';
 export * from './CellVoltage';
+export * from './ThermometerIcon';
+export * from './CellImbalanceWarning';

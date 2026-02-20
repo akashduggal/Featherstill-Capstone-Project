@@ -7,7 +7,13 @@ import {
   useColorScheme,
 } from "react-native";
 import { Colors } from "../../constants/Colors";
-import { BatteryIcon, StatTile, CellVoltage } from "../../components";
+import {
+  BatteryIcon,
+  StatTile,
+  CellVoltage,
+  ThermometerIcon,
+  CellImbalanceWarning,
+} from "../../components";
 
 // ---------------------------------------------------------------------------
 // Static battery data — will be replaced with live BLE data from ESP32 later
@@ -18,13 +24,13 @@ const BATTERY_DATA = {
   minCellVoltage: 3.57,
   maxCellVoltage: 3.62,
   totalBatteryVoltage: 57.44,
-  cellTemperature: 25.0,
+  cellTemperature: 37.0,
   currentAmps: -19.83,
   outputVoltage: 56.87,
   stateOfCharge: 100, // percentage 0-100
   chargingStatus: "INACTIVE",
   cellVoltages: [
-    3.58, 3.6, 3.59, 3.59, 3.6, 3.57, 3.62, 3.62, 3.59, 3.58, 3.57, 3.58,
+    3.58, 3.6, 3.59, 3.59, 3.6, 3.60, 3.62, 3.62, 3.59, 3.58, 3.57, 3.58,
     3.59, 3.58, 3.58, 3.6,
   ],
 };
@@ -37,6 +43,11 @@ export default function Dashboard() {
   const theme = colorScheme === "dark" ? "dark" : "light";
   const colors = Colors[theme];
   const d = BATTERY_DATA;
+
+  // Compute cell voltage stats for highlighting min/max & imbalance
+  const minV = Math.min(...d.cellVoltages);
+  const maxV = Math.max(...d.cellVoltages);
+  const voltageDelta = maxV - minV;
 
   return (
     <ScrollView
@@ -64,19 +75,31 @@ export default function Dashboard() {
           colors={colors}
         />
         <StatTile
-          label="Cell Temperature"
-          value={`${d.cellTemperature.toFixed(1)} °C`}
-          colors={colors}
-        />
-
-        <StatTile
           label="Current (A)"
           value={d.currentAmps.toFixed(3)}
           valueColor={colors.error}
           colors={colors}
         />
+
         <StatTile label="Output Voltage" value={d.outputVoltage.toFixed(3)} colors={colors} />
+
+        {/* Cell Temperature with thermometer */}
+        <View style={styles.tempTile}>
+          <Text style={[styles.statLabel, { color: colors.icon }]}>
+            Cell Temperature
+          </Text>
+          <View style={styles.tempValueRow}>
+            <Text style={[styles.tempValue, { color: colors.text }]}>
+              {d.cellTemperature.toFixed(1)} °C
+            </Text>
+            <ThermometerIcon
+              temperature={d.cellTemperature}
+              colors={colors}
+            />
+          </View>
+        </View>
       </View>
+
 
       {/* ── State of Charge & Charging Status ──────────────────── */}
       <View style={styles.socRow}>
@@ -102,6 +125,9 @@ export default function Dashboard() {
         </View>
       </View>
 
+      {/* ── Cell Imbalance Warning ──────────────────────────────── */}
+      <CellImbalanceWarning delta={voltageDelta} threshold={0.2} colors={colors} />
+
       {/* ── Cells Voltages ─────────────────────────────────────── */}
       <Text style={[styles.sectionTitle, { color: colors.text }]}>
         Cells Voltages
@@ -109,7 +135,14 @@ export default function Dashboard() {
 
       <View style={styles.cellsGrid}>
         {d.cellVoltages.map((v, i) => (
-          <CellVoltage key={i} index={i + 1} voltage={v} colors={colors} />
+          <CellVoltage
+            key={i}
+            index={i + 1}
+            voltage={v}
+            isMin={v === minV}
+            isMax={v === maxV}
+            colors={colors}
+          />
         ))}
       </View>
     </ScrollView>
@@ -117,7 +150,7 @@ export default function Dashboard() {
 }
 
 // ---------------------------------------------------------------------------
-// Styles (theme-independent layout only)
+// Styles (theme-independent layout only — center-aligned for mobile)
 // ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
   scrollView: {
@@ -127,18 +160,21 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 50,
     paddingBottom: 40,
+    alignItems: "center",
   },
 
   /* Title / Subtitle */
   title: {
     fontSize: 28,
     fontWeight: "800",
-    marginBottom: 4,
+    marginBottom: 12,
+    textAlign: "center",
   },
   subtitle: {
     fontSize: 18,
     fontWeight: "700",
-    marginBottom: 20,
+    marginBottom: 24,
+    textAlign: "center",
   },
 
   /* Stats Grid */
@@ -147,33 +183,53 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 20,
+    width: "100%",
   },
   statLabel: {
     fontSize: 13,
     fontWeight: "600",
-    marginBottom: 4,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+
+  /* Temperature tile in stats grid */
+  tempTile: {
+    width: "48%",
+    marginBottom: 16,
+    alignItems: "center",
+  },
+  tempValueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tempValue: {
+    fontSize: 18,
+    fontWeight: "700",
   },
 
   /* SOC Row */
   socRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     alignItems: "flex-start",
     marginBottom: 28,
+    width: "100%",
   },
   socBlock: {
     width: "48%",
+    alignItems: "center",
     gap: 6,
   },
   socPct: {
     fontSize: 16,
     fontWeight: "700",
     marginTop: 2,
+    textAlign: "center",
   },
 
   /* Charging Status Badge */
   badge: {
-    alignSelf: "flex-start",
     borderWidth: 1.5,
     borderRadius: 6,
     paddingHorizontal: 14,
@@ -183,6 +239,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 14,
     fontWeight: "700",
+    textAlign: "center",
   },
 
   /* Cells Voltages */
@@ -190,11 +247,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     marginBottom: 14,
+    textAlign: "center",
   },
   cellsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 24,
+    width: "100%",
   },
 });
