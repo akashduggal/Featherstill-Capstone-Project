@@ -1,12 +1,17 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { User } from '../models/User';
+import auth from '@react-native-firebase/auth';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+});
 
 const AuthContext = createContext({
   user: null,
   loading: true,
-  login: async () => {},
+  loginWithGoogle: async () => {},
+  loginAsGuest: async () => {},
   logout: async () => {},
-  signup: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -15,55 +20,61 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Simulate checking for persisted user on mount
   useEffect(() => {
-    const checkUser = async () => {
-      // TODO: Replace with actual Firebase Auth listener
-      setTimeout(() => {
-        setLoading(false);
-      }, 1000);
-    };
-    checkUser();
-  }, []);
+    const subscriber = auth().onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+      if (loading) setLoading(false);
+    });
+    return subscriber; 
+  }, [loading]);
 
-  const login = async (email, password) => {
-    setLoading(true);
-    // TODO: Replace with actual Firebase login
+  const loginWithGoogle = async () => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const mockUser = new User({
-        uid: 'mock-user-123',
-        email: email,
-        displayName: 'Test User',
-      });
-      setUser(mockUser);
-      return mockUser;
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const userInfo = await GoogleSignin.signIn();
+      
+      const idToken = userInfo.data?.idToken || userInfo.idToken;
+      if (!idToken) throw new Error('No ID token found');
+
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      await auth().signInWithCredential(googleCredential);
     } catch (error) {
-      console.error(error);
-      throw error;
-    } finally {
-      setLoading(false);
+      if (error.code !== statusCodes.SIGN_IN_CANCELLED) {
+        console.error('Google Sign-In Error:', error);
+        throw error;
+      }
     }
   };
 
   const logout = async () => {
-    setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUser(null);
-    } finally {
-      setLoading(false);
+      const currentUser = auth().currentUser;
+      const isGoogleLogin = currentUser?.providerData.some(
+        (provider) => provider.providerId === 'google.com'
+      );
+
+      await auth().signOut();
+      
+      if (isGoogleLogin) {
+        try {
+          await GoogleSignin.revokeAccess();
+          await GoogleSignin.signOut();
+        } catch (googleError) {
+          console.log('Google SDK cleanup:', googleError);
+        }
+      }
+    } catch (error) {
+      console.error('Logout Error:', error);
     }
   };
 
-  const signup = async (email, password) => {
-    // Similar to login for now
-    return login(email, password);
-  };
-
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, signup }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      loginWithGoogle, 
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );
