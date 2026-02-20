@@ -191,7 +191,7 @@ static const struct ble_gatt_svc_def g_svcs[] = {
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe3),
                 .access_cb = live_access_cb, 
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+                .flags = BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_backlog_val_handle,
             },
             { 0 }
