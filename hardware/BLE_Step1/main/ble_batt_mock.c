@@ -3,10 +3,12 @@
 #include <string.h>
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_random.h"
 
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
 #include "host/util/util.h"
+#include "os/os_mbuf.h"
 
 static const char *TAG = "BATT_MOCK";
 
@@ -26,31 +28,108 @@ static uint16_t s_conn = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t s_live_val_handle = 0;
 static bool s_live_notify = false;
 
-bool ble_batt_mock_is_subscribed(void) { return s_live_notify && s_conn != BLE_HS_CONN_HANDLE_NONE; }
+static uint16_t s_cmd_val_handle = 0;
+static volatile bool s_backlog_requested = false;
 
+bool ble_backlog_requested(void) { return s_backlog_requested; }
+void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+
+bool ble_batt_mock_is_subscribed(void)
+{
+    return s_live_notify && s_conn != BLE_HS_CONN_HANDLE_NONE;
+}
+
+static uint16_t rand_u16(uint16_t min, uint16_t max)
+{
+    if (max <= min) return min;
+    return (uint16_t)(min + (esp_random() % (max - min + 1)));
+}
+
+static int16_t rand_i16(int16_t min, int16_t max)
+{
+    if (max <= min) return min;
+    return (int16_t)(min + (int32_t)(esp_random() % (uint32_t)(max - min + 1)));
+}
 static void build_mock(battery_log_t *r)
 {
     memset(r, 0, sizeof(*r));
 
     r->timestamp_s = (uint32_t)(esp_timer_get_time() / 1000000ULL);
 
-    // Example mock values
-    // cells around 3.65V
+    // Random-ish cells around 3600–4200 mV
+    uint32_t sum = 0;
+    uint16_t base = rand_u16(3600, 4100);
+
     for (int i = 0; i < 16; i++) {
-        r->cell_mv[i] = (uint16_t)(3650 + (i % 4) * 3); // small variation
+        int16_t noise = rand_i16(-15, 15);     // small cell-to-cell variation
+        uint16_t v = (uint16_t)((int32_t)base + noise);
+
+        // clamp
+        if (v < 3300) v = 3300;
+        if (v > 4200) v = 4200;
+
+        r->cell_mv[i] = v;
+        sum += v;
     }
 
-    // pack total: sum of cells (rough mock)
-    uint32_t sum = 0;
-    for (int i = 0; i < 16; i++) sum += r->cell_mv[i];
     r->pack_total_mv = (uint16_t)sum;
 
-    r->pack_ld_mv = r->pack_total_mv - 50;          // pretend load drop
-    r->pack_sum_active_mv = r->pack_total_mv;       // same for mock
-    r->current_ma = -1200;                          // -1.2A (discharging)
-    r->temp_ts1_c_x100 = 2550;                      // 25.50 C
-    r->temp_int_c_x100 = 2800;                      // 28.00 C
-    r->soc = 76;                                    // 76%
+    // Load drop 20–150 mV (just a mock)
+    uint16_t drop = rand_u16(20, 150);
+    r->pack_ld_mv = (r->pack_total_mv > drop) ? (r->pack_total_mv - drop) : r->pack_total_mv;
+
+    r->pack_sum_active_mv = r->pack_total_mv;
+
+    // Current -5000 to +5000 mA
+    r->current_ma = rand_i16(-5000, 5000);
+
+    // Temps: 20.00°C–45.00°C
+    r->temp_ts1_c_x100 = (int16_t)rand_u16(2000, 4500);
+    r->temp_int_c_x100 = (int16_t)rand_u16(2000, 4500);
+
+    // SOC 0–100
+    r->soc = (uint8_t)rand_u16(0, 100);
+}
+
+static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                         struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+
+    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    uint8_t cmd = 0;
+    int rc = os_mbuf_copydata(ctxt->om, 0, 1, &cmd);
+    if (rc != 0) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
+    if (cmd == 0x01) {
+        s_backlog_requested = true;
+        ESP_LOGI(TAG, "Backlog requested (CMD=0x01)");
+    } else {
+        ESP_LOGW(TAG, "Unknown CMD=0x%02X", cmd);
+    }
+
+    return 0;
+}
+
+static int live_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+                          struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)arg;
+
+    battery_log_t rec;
+    build_mock(&rec);
+
+    int rc = os_mbuf_append(ctxt->om, &rec, sizeof(rec));
+    return (rc == 0) ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
 void ble_batt_mock_notify_mock(void)
@@ -71,6 +150,7 @@ void ble_batt_mock_notify_mock(void)
 
 // Service UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee0
 // LIVE char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee1
+// CMD  char UUID: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeee2
 static const struct ble_gatt_svc_def g_svcs[] = {
     {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -78,21 +158,38 @@ static const struct ble_gatt_svc_def g_svcs[] = {
         .characteristics = (struct ble_gatt_chr_def[]) {
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe1),
-                .access_cb = NULL,
-                .flags = BLE_GATT_CHR_F_NOTIFY,
+                .access_cb = live_access_cb,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_live_val_handle,
+            },
+            {
+                .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe2),
+                .access_cb = cmd_access_cb,
+                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
+                .val_handle = &s_cmd_val_handle,
             },
             { 0 }
         }
-    },
+            },
     { 0 }
 };
 
 void ble_batt_mock_register(void)
 {
-    // Called from ble_stack_start() before nimble_port_freertos_init()
-    ble_gatts_count_cfg(g_svcs);
-    ble_gatts_add_svcs(g_svcs);
+    int rc;
+
+    rc = ble_gatts_count_cfg(g_svcs);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "ble_gatts_count_cfg failed rc=%d", rc);
+        return;
+    }
+
+    rc = ble_gatts_add_svcs(g_svcs);
+    if (rc != 0) {
+        ESP_LOGE(TAG, "ble_gatts_add_svcs failed rc=%d", rc);
+        return;
+    }
+
     ESP_LOGI(TAG, "Mock battery service registered");
 }
 
@@ -105,6 +202,7 @@ void ble_batt_mock_on_disconnect(void)
 {
     s_conn = BLE_HS_CONN_HANDLE_NONE;
     s_live_notify = false;
+    s_backlog_requested = false;
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
