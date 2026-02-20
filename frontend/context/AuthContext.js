@@ -68,11 +68,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signup = async (email, password) => {
-    // Similar to login for now
-    return login(email, password);
-  };
-
   return (
     <AuthContext.Provider value={{ 
       user, 

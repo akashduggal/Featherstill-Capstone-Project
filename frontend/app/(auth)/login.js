@@ -93,21 +93,6 @@ export default function LoginScreen() {
                     </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={[
-                        styles.signupButton,
-                        {
-                            borderColor: colors.tint,
-                        }
-                    ]}
-                    onPress={handleSignUp}
-                    activeOpacity={0.8}
-                >
-                    <Text style={[styles.signupButtonText, { color: colors.tint }]}>
-                        Create an account
-                    </Text>
-                </TouchableOpacity>
-
                 {/* Guest Access Button */}
                 <TouchableOpacity
                     style={styles.guestButton}
