@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 /**
- * A single stat tile shown in a 2-column grid.
+ * A single stat tile shown in a 2-column grid (center-aligned).
  *
  * @param {string}  label       – e.g. "Min Cell Voltage"
  * @param {string}  value       – formatted value string
@@ -32,14 +32,17 @@ const styles = StyleSheet.create({
     tile: {
         width: '48%',
         marginBottom: 16,
+        alignItems: 'center',
     },
     label: {
         fontSize: 13,
         fontWeight: '600',
         marginBottom: 4,
+        textAlign: 'center',
     },
     value: {
         fontSize: 18,
         fontWeight: '700',
+        textAlign: 'center',
     },
 });
