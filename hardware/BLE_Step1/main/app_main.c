@@ -23,7 +23,7 @@ static void battery_log_test_13(void)
 {
     // 1) Count before
     int before = battery_log_count();
-    printf("Count BEFORE append = %d", before);
+    ESP_LOGI(TAGT, "Count BEFORE append = %d", before);
 
     // 2) Append 10 records
     battery_log_t rec = {0};
@@ -35,33 +35,33 @@ static void battery_log_test_13(void)
         rec.soc = 10 + i;
 
         int ok = battery_log_append(&rec);
-        printf("append i=%d -> %s", i, ok == 0 ? "OK" : "FAIL");
+        ESP_LOGI(TAGT, "append i=%d -> %s", i, ok == 0 ? "OK" : "FAIL");
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
     // 3) Count after
     int after = battery_log_count();
-    printf("Count AFTER append = %d (expected >= BEFORE+10)", after);
+    ESP_LOGI(TAGT, "Count AFTER append = %d (expected >= BEFORE+10)", after);
 
     // 4) Read index 0 and last index (after-1)
     battery_log_t out0 = {0};
     if (battery_log_read(0, &out0)) {
-        printf("READ[0] ok ts=%u soc=%u", out0.timestamp_s, out0.soc);
+        ESP_LOGI(TAGT, "READ[0] ok ts=%u soc=%u", out0.timestamp_s, out0.soc);
     } else {
-        printf( "READ[0] failed");
+        ESP_LOGE(TAGT, "READ[0] failed");
     }
 
     battery_log_t outLast = {0};
     if (after > 0 && battery_log_read(after - 1, &outLast)) {
-        printf("READ[last=%d] ok ts=%u soc=%u", after - 1, outLast.timestamp_s, outLast.soc);
+        ESP_LOGI(TAGT, "READ[last=%d] ok ts=%u soc=%u", after - 1, outLast.timestamp_s, outLast.soc);
     } else {
-        printf("READ[last] failed (after=%d)", after);
+        ESP_LOGE(TAGT, "READ[last] failed (after=%d)", after);
     }
 
     // 5) Read out-of-range index (must fail cleanly)
     battery_log_t outBad = {0};
     bool bad = battery_log_read(after, &outBad);
-    printf("READ[out_of_range index=%d] -> %s (expected false)", after, bad ? "true" : "false");
+    ESP_LOGI(TAGT, "READ[out_of_range index=%d] -> %s (expected false)", after, bad ? "true" : "false");
 }
 
 static void test_battery_log_append(void)
