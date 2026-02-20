@@ -1,4 +1,4 @@
-import React from 'react';
+import React ,{useState}from 'react';
 import {
     StyleSheet,
     View,
@@ -8,9 +8,12 @@ import {
     StatusBar,
     useColorScheme,
     Dimensions,
+    Alert,
+    ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../../context';
 
 import { Colors } from '../../constants/Colors';
 
@@ -21,10 +24,20 @@ export default function LoginScreen() {
     const colorScheme = useColorScheme();
     const theme = colorScheme === 'dark' ? 'dark' : 'light';
     const colors = Colors[theme];
+    const { loginWithGoogle } = useAuth();
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-    const handleGoogleSignIn = () => {
-        console.log('Google Sign-In Pressed');
-        router.replace('/(tabs)/home');
+    const handleGoogleSignIn = async() => {
+       if (isGoogleLoading) return;
+        setIsGoogleLoading(true);
+        try {
+            await loginWithGoogle();
+            router.replace('/(tabs)/home');
+        } catch (error) {
+            Alert.alert('Login Failed', 'Could not sign in with Google.');
+        } finally {
+            setIsGoogleLoading(false);
+        }
     };
 
     const handleGuestAccess = () => {
@@ -70,9 +83,13 @@ export default function LoginScreen() {
                     onPress={handleGoogleSignIn}
                     activeOpacity={0.8}
                 >
-                    <Ionicons name="logo-google" size={20} color={colors.text} style={styles.btnIcon} />
+                    {isGoogleLoading ? (
+                        <ActivityIndicator size="small" color={colors.text} style={styles.btnIcon} />
+                    ) : (
+                        <Ionicons name="logo-google" size={20} color={colors.text} style={styles.btnIcon} />
+                    )}
                     <Text style={[styles.googleButtonText, { color: colors.text }]}>
-                        Sign in with Google
+                        {isGoogleLoading ? 'Signing in...' : 'Sign in with Google'}
                     </Text>
                 </TouchableOpacity>
 
