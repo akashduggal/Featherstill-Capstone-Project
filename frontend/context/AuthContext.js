@@ -1,5 +1,12 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import auth from '@react-native-firebase/auth';
+import { 
+  getAuth, 
+  onAuthStateChanged, 
+  signInAnonymously, 
+  GoogleAuthProvider, 
+  signInWithCredential, 
+  signOut 
+} from '@react-native-firebase/auth';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
 GoogleSignin.configure({
@@ -21,8 +28,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const auth = getAuth();
+
   useEffect(() => {
-    const subscriber = auth().onAuthStateChanged((currentUser) => {
+    const subscriber = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (loading) setLoading(false);
     });
@@ -37,8 +46,8 @@ export const AuthProvider = ({ children }) => {
       const idToken = userInfo.data?.idToken || userInfo.idToken;
       if (!idToken) throw new Error('No ID token found');
 
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-      await auth().signInWithCredential(googleCredential);
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, googleCredential);
     } catch (error) {
       if (error.code !== statusCodes.SIGN_IN_CANCELLED) {
         console.error('Google Sign-In Error:', error);
@@ -49,7 +58,7 @@ export const AuthProvider = ({ children }) => {
 
   const loginAsGuest = async () => {
     try {
-      await auth().signInAnonymously();
+      await signInAnonymously(auth);
     } catch (error) {
       console.error('Guest Sign-In Error:', error);
       throw error;
@@ -58,12 +67,12 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      const currentUser = auth().currentUser;
+      const currentUser = auth.currentUser;
       const isGoogleLogin = currentUser?.providerData.some(
         (provider) => provider.providerId === 'google.com'
       );
 
-      await auth().signOut();
+      await signOut(auth);
       
       if (isGoogleLogin) {
         try {

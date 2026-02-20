@@ -19,7 +19,7 @@ export default function Home() {
           {isGuest ? (
             <>
               <View style={styles.placeholderAvatar}>
-                <Typography variant='h2' style={{ color: '#fff' }}>
+                <Typography variant='h2' style={{ color: '#fff', marginBottom:0 }}>
                   G
                 </Typography>
               </View>
@@ -34,7 +34,7 @@ export default function Home() {
                 <Image source={{ uri: user.photoURL }} style={styles.avatar} />
               ) : (
                 <View style={styles.placeholderAvatar}>
-                  <Typography variant='h2' style={{ color: '#fff' }}>
+                  <Typography variant='h2' style={{ color: '#fff', marginBottom:0 }}>
                     {user?.displayName ? user.displayName.charAt(0) : '?'}
                   </Typography>
                 </View>
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#007AFF', // You can change this to colors.tint
+    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
