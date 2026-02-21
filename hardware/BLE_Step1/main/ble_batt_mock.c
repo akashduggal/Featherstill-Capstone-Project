@@ -209,7 +209,7 @@ static const struct ble_gatt_svc_def g_svcs[] = {
             },
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe3),
-                .access_cb = live_access_cb, 
+                .access_cb = NULL, 
                 .flags = BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_backlog_val_handle,
             },
@@ -241,6 +241,30 @@ void ble_batt_mock_register(void)
 void ble_batt_mock_on_connect(uint16_t conn_handle)
 {
     s_conn = conn_handle;
+}
+
+void ble_batt_mock_build_record(battery_log_t *out)
+{
+    if (!out) return;
+    build_mock(out);
+}
+int ble_batt_mock_notify_live(const battery_log_t *rec)
+{
+    if (!rec) return -2;
+    if (!ble_batt_mock_is_subscribed()) return -1;
+
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(rec, sizeof(*rec));
+    if (!om) {
+        ESP_LOGE(TAG, "ble_hs_mbuf_from_flat failed (LIVE)");
+        return -3;
+    }
+
+    int rc = ble_gatts_notify_custom(s_conn, s_live_val_handle, om);
+    if (rc != 0) {
+        ESP_LOGW(TAG, "LIVE notify failed rc=%d", rc);
+        os_mbuf_free_chain(om);
+    }
+    return rc;
 }
 
 void ble_batt_mock_on_disconnect(void)

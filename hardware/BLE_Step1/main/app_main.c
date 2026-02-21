@@ -128,52 +128,59 @@ static void mock_sender_task(void *arg)
 
     while (1) {
 
-        // ---- Task 2.2: if backlog requested, send all stored records ----
         if (ble_backlog_requested()) {
-            // If another backlog send is already in progress, ignore this request
+
             if (ble_batt_is_sending_backlog()) {
                 ESP_LOGI(TAGT, "BACKLOG: request ignored - already sending");
                 ble_backlog_clear_request();
-            } else {
-                // Mark sending state so further CMDs are ignored
-                ble_batt_set_sending_backlog(true);
-                ble_backlog_clear_request();
+                continue;
+            }
 
-                int count = battery_log_count();
-                printf("BACKLOG: start count=%d\n", count);
+            ble_batt_set_sending_backlog(true);
+            ble_backlog_clear_request();
 
-                for (int i = 0; i < count; i++) {
-                    battery_log_t rec;
-                    if (!battery_log_read(i, &rec)) {
-                        printf("BACKLOG: read failed i=%d\n", i);
-                        continue;
-                    }
+            int count = battery_log_count();
+            printf("BACKLOG: start count=%d\n", count);
 
-                    // Will only notify if BACKLOG notify is enabled
-                    int rc = ble_batt_mock_notify_backlog(&rec);
-                    if (rc != 0) {
-                        printf("BACKLOG: notify rc=%d i=%d - aborting\n", rc, i);
-                        break; // abort on failure (e.g., disconnect)
-                    }
-
-                    vTaskDelay(pdMS_TO_TICKS(15)); // 10–20ms recommended
+            for (int i = 0; i < count; i++) {
+                battery_log_t rec;
+                if (!battery_log_read(i, &rec)) {
+                    printf("BACKLOG: read failed i=%d\n", i);
+                    continue;
                 }
 
-                printf("BACKLOG: done\n");
-                // Keep the sending flag set for a short cooldown to absorb
-                // any write-without-response requests that the controller
-                // may have buffered and deliver shortly after the loop.
-                vTaskDelay(backlog_cooldown);
-                ble_batt_set_sending_backlog(false);
+                int rc = ble_batt_mock_notify_backlog(&rec);
+                if (rc != 0) {
+                    printf("BACKLOG: notify rc=%d i=%d - aborting\n", rc, i);
+                    break;
+                }
+
+                vTaskDelay(pdMS_TO_TICKS(15));
             }
+
+            printf("BACKLOG: done\n");
+            vTaskDelay(backlog_cooldown);
+            ble_batt_set_sending_backlog(false);
+            continue;
         }
 
-        // Normal live behavior
-        ble_batt_mock_notify_mock();
+        battery_log_t rec;
+        ble_batt_mock_build_record(&rec);
+
+        if (ble_batt_mock_is_subscribed()) {
+            int rc = ble_batt_mock_notify_live(&rec);
+            if (rc != 0) {
+                int ar = battery_log_append(&rec);
+                if (ar != 0) ESP_LOGW(TAGT, "append failed rc=%d", ar);
+            }
+        } else {
+            int ar = battery_log_append(&rec);
+            if (ar != 0) ESP_LOGW(TAGT, "append failed rc=%d", ar);
+        }
+
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }
-
 
 void app_main(void)
 {
