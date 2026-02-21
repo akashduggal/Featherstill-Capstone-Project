@@ -17,3 +17,7 @@ void ble_backlog_clear_request(void);
 
 
 int ble_batt_mock_notify_backlog(const battery_log_t *rec);
+
+/* Backlog sending session state helpers */
+void ble_batt_set_sending_backlog(bool v);
+bool ble_batt_is_sending_backlog(void);
