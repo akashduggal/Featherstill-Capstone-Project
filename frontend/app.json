@@ -20,7 +20,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+        "react-native-ble-plx"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",

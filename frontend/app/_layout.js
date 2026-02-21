@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { AuthProvider, BatteryProvider } from '../context';
-import { useAuth } from '../context/AuthContext'
+import { AuthProvider, BatteryProvider, useAuth } from '../context';
+import { BLEProvider } from '../context/BLEContext';
 
 const RootNavigation = () => {
   const { user, loading } = useAuth();
@@ -36,7 +36,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <BatteryProvider>
-        <RootNavigation />
+        <BLEProvider>
+          <RootNavigation />
+        </BLEProvider>
       </BatteryProvider>
     </AuthProvider>
   );
