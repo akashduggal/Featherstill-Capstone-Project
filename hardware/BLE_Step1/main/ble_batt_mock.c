@@ -200,16 +200,12 @@ static const struct ble_gatt_svc_def g_svcs[] = {
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe2),
                 .access_cb = cmd_access_cb,
-                /* Require Write With Response to avoid client-side buffering
-                   of Write Without Response (Command) that can be delivered
-                   after backlog finishes. This forces the client to use
-                   'Request' which is delivered immediately by the stack. */
-                .flags = BLE_GATT_CHR_F_WRITE,     // ← Changed from BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP
+                .flags = BLE_GATT_CHR_F_WRITE,   
                 .val_handle = &s_cmd_val_handle,
             },
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe3),
-                .access_cb = NULL, 
+                .access_cb = live_access_cb, 
                 .flags = BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_backlog_val_handle,
             },
