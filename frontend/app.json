@@ -31,7 +31,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fetherstill.app",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -40,7 +41,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.fetherstill.app",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
