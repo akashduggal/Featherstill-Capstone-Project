@@ -192,7 +192,6 @@ void app_main(void)
 
     storage_init();     // mount first
     log_maybe_wipe_on_format_change();
-
     ble_stack_start();  // start BLE after FS is ready
 
     // (Remove test_battery_log_append now — already tested)
