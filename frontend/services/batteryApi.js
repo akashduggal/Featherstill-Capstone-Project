@@ -71,7 +71,7 @@ export const postBatteryReading = async (batteryData, email, batteryId) => {
     };
 
     console.log('[Battery API] Posting reading for battery:', batteryId);
-
+    console.log('[Battery API] POST URL:', getApiUrl('/api/battery-readings'));
     // Make POST request
     const response = await fetch(getApiUrl('/api/battery-readings'), {
       method: 'POST',

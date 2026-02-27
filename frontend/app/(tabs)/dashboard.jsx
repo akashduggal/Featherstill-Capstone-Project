@@ -18,6 +18,7 @@ import {
 import { useAuth } from "../../context";
 import { postBatteryReading } from "../../services/batteryApi";
 import { getUserIdentifier } from "../../utils/userIdentifier";
+import { Button } from '../../components';
 
 // ---------------------------------------------------------------------------
 // Static battery data — will be replaced with live BLE data from ESP32 later
@@ -103,6 +104,11 @@ export default function Dashboard() {
       <Text style={[styles.title, { color: colors.text }]}> 
         Fetherstill Data Console
       </Text>
+
+      <Button
+        title="Send Test Reading"
+        onPress={handlePostBatteryData}
+      />
 
       {/* ── Subtitle ───────────────────────────────────────────── */}
       <Text style={[styles.subtitle, { color: colors.text }]}> 

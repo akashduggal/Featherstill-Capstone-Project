@@ -5,7 +5,7 @@
 
 export const API_CONFIG = {
   // Base URL for backend API
-  BASE_URL: 'http://localhost:3000',
+  BASE_URL: 'http://192.168.0.105:3000',
   
   // Request timeout (milliseconds)
   TIMEOUT: 10000,
