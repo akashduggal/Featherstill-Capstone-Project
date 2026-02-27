@@ -200,11 +200,7 @@ static const struct ble_gatt_svc_def g_svcs[] = {
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe2),
                 .access_cb = cmd_access_cb,
-                /* Require Write With Response to avoid client-side buffering
-                   of Write Without Response (Command) that can be delivered
-                   after backlog finishes. This forces the client to use
-                   'Request' which is delivered immediately by the stack. */
-                .flags = BLE_GATT_CHR_F_WRITE,     // ← Changed from BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP
+                .flags = BLE_GATT_CHR_F_WRITE,   
                 .val_handle = &s_cmd_val_handle,
             },
             {
@@ -241,6 +237,30 @@ void ble_batt_mock_register(void)
 void ble_batt_mock_on_connect(uint16_t conn_handle)
 {
     s_conn = conn_handle;
+}
+
+void ble_batt_mock_build_record(battery_log_t *out)
+{
+    if (!out) return;
+    build_mock(out);
+}
+int ble_batt_mock_notify_live(const battery_log_t *rec)
+{
+    if (!rec) return -2;
+    if (!ble_batt_mock_is_subscribed()) return -1;
+
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(rec, sizeof(*rec));
+    if (!om) {
+        ESP_LOGE(TAG, "ble_hs_mbuf_from_flat failed (LIVE)");
+        return -3;
+    }
+
+    int rc = ble_gatts_notify_custom(s_conn, s_live_val_handle, om);
+    if (rc != 0) {
+        ESP_LOGW(TAG, "LIVE notify failed rc=%d", rc);
+        os_mbuf_free_chain(om);
+    }
+    return rc;
 }
 
 void ble_batt_mock_on_disconnect(void)

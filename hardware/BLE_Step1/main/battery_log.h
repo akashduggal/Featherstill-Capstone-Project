@@ -1,5 +1,5 @@
 #pragma once
-
+#include "esp_err.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -12,6 +12,7 @@
  * will break compatibility.
  */
 typedef struct __attribute__((packed)) {
+    uint32_t seq;  
     uint32_t timestamp_s;              // Unix timestamp in seconds
     uint16_t cell_mv[16];              // Individual cell voltages (mV)
     uint16_t pack_total_mv;            // Total pack voltage (mV)
@@ -24,6 +25,12 @@ typedef struct __attribute__((packed)) {
     uint8_t  _pad[3];                  // padding to align size to multiple of 4 (optional)
 } battery_log_t;
 
+#define LOG_RECORD_VERSION 2
+#define LOG_RECORD_SIZE_BYTES 56  // set to your exact sizeof(battery_log_t)
+
+_Static_assert(sizeof(battery_log_t) == LOG_RECORD_SIZE_BYTES,
+               "battery_log_t size changed! Bump LOG_RECORD_VERSION and migrate/wipe battery.bin");
+               
 /**
  * @brief Append a battery log record to /littlefs/battery.bin
  *
@@ -48,3 +55,5 @@ int battery_log_count(void);
  * @return true if the read succeeded and `out` contains a record; false otherwise.
  */
 bool battery_log_read(int index, battery_log_t *out);
+
+esp_err_t log_maybe_wipe_on_format_change(void);
