@@ -24,7 +24,7 @@ static esp_err_t nvs_get_u32_safe(nvs_handle_t h, const char *key, uint32_t *out
     if (err == ESP_ERR_NVS_NOT_FOUND) { *found = false; return ESP_OK; }
     return err;
 }
-static esp_err_t log_maybe_wipe_on_format_change(void)
+esp_err_t log_maybe_wipe_on_format_change(void)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS_LOG, NVS_READWRITE, &h);
@@ -61,9 +61,9 @@ static esp_err_t log_maybe_wipe_on_format_change(void)
              "LOG META mismatch old(ver=%u sz=%u) new(ver=%u sz=%u) -> WIPE %s",
              (unsigned)stored_ver, (unsigned)stored_sz,
              (unsigned)cur_ver, (unsigned)cur_sz,
-             LOG_FILE_PATH);
+             LOG_FILE);
 
-    unlink(LOG_FILE_PATH);
+    unlink(LOG_FILE);
 
     ESP_ERROR_CHECK(nvs_set_u32(h, NVS_KEY_LOG_VER, cur_ver));
     ESP_ERROR_CHECK(nvs_set_u32(h, NVS_KEY_LOG_SIZE, cur_sz));
