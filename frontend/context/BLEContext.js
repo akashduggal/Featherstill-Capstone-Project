@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useRef } from 'react';
 import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 
@@ -49,6 +49,7 @@ export const BLEProvider = ({ children }) => {
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [telemetryData, setTelemetryData] = useState(null);
+  const dataBuffer = useRef(Buffer.alloc(0));
 
   useEffect(() => {
     const subscription = manager.onStateChange((state) => {
@@ -96,13 +97,20 @@ export const BLEProvider = ({ children }) => {
                 return;
               }
               if (char && char.value) {
-                const buffer = Buffer.from(char.value, 'base64');
-                const parsedData = parseTelemetryData(buffer);
-                if (parsedData) {
-                  console.log('Received parsed data:', parsedData);
-                  setTelemetryData(parsedData);
-                } else {
-                  console.log('Received raw data (incomplete packet):', buffer.toString('hex'));
+                const newChunk = Buffer.from(char.value, 'base64');
+                dataBuffer.current = Buffer.concat([dataBuffer.current, newChunk]);
+
+                while (dataBuffer.current.length >= 49) {
+                  const packet = dataBuffer.current.slice(0, 49);
+                  const parsedData = parseTelemetryData(packet);
+
+                  if (parsedData) {
+                    console.log('Received parsed data:', parsedData);
+                    setTelemetryData(parsedData);
+                  } else {
+                    console.log('Received raw data (incomplete packet):', packet.toString('hex'));
+                  }
+                  dataBuffer.current = dataBuffer.current.slice(49);
                 }
               }
             });
@@ -119,6 +127,7 @@ export const BLEProvider = ({ children }) => {
       await connectedDevice.cancelConnection();
       setConnectedDevice(null);
       setTelemetryData(null);
+      dataBuffer.current = Buffer.alloc(0);
     }
   };
 
