@@ -54,3 +54,4 @@ int battery_log_count(void);
  * @return true if the read succeeded and `out` contains a record; false otherwise.
  */
 bool battery_log_read(int index, battery_log_t *out);
+esp_err_t log_maybe_wipe_on_format_change(void);
