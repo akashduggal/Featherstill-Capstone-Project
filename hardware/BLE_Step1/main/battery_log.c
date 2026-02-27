@@ -7,9 +7,71 @@
 #include <stdbool.h>
 #include <inttypes.h>   // <-- IMPORTANT for PRIiMAX
 #include "esp_log.h"
+#include <unistd.h>   // unlink()
+#include "nvs.h"
 
+
+#define NVS_NS_LOG            "blog"
+#define NVS_KEY_LOG_VER       "log_ver"
+#define NVS_KEY_LOG_SIZE      "log_sz"
 static const char *TAG = "BATTERY_LOG";
 static const char *LOG_FILE = "/littlefs/battery.bin";
+
+static esp_err_t nvs_get_u32_safe(nvs_handle_t h, const char *key, uint32_t *out, bool *found)
+{
+    esp_err_t err = nvs_get_u32(h, key, out);
+    if (err == ESP_OK) { *found = true; return ESP_OK; }
+    if (err == ESP_ERR_NVS_NOT_FOUND) { *found = false; return ESP_OK; }
+    return err;
+}
+static esp_err_t log_maybe_wipe_on_format_change(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NS_LOG, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+
+    uint32_t stored_ver = 0, stored_sz = 0;
+    bool ver_found = false, sz_found = false;
+
+    err = nvs_get_u32_safe(h, NVS_KEY_LOG_VER, &stored_ver, &ver_found);
+    if (err != ESP_OK) { nvs_close(h); return err; }
+
+    err = nvs_get_u32_safe(h, NVS_KEY_LOG_SIZE, &stored_sz, &sz_found);
+    if (err != ESP_OK) { nvs_close(h); return err; }
+
+    const uint32_t cur_ver = LOG_RECORD_VERSION;
+    const uint32_t cur_sz  = (uint32_t)sizeof(battery_log_t);
+
+    if (!ver_found || !sz_found) {
+        ESP_LOGI(TAG, "LOG META init ver=%u size=%u", (unsigned)cur_ver, (unsigned)cur_sz);
+        ESP_ERROR_CHECK(nvs_set_u32(h, NVS_KEY_LOG_VER, cur_ver));
+        ESP_ERROR_CHECK(nvs_set_u32(h, NVS_KEY_LOG_SIZE, cur_sz));
+        err = nvs_commit(h);
+        nvs_close(h);
+        return err;
+    }
+
+    if (stored_ver == cur_ver && stored_sz == cur_sz) {
+        ESP_LOGI(TAG, "LOG META ok ver=%u size=%u", (unsigned)stored_ver, (unsigned)stored_sz);
+        nvs_close(h);
+        return ESP_OK;
+    }
+
+    ESP_LOGW(TAG,
+             "LOG META mismatch old(ver=%u sz=%u) new(ver=%u sz=%u) -> WIPE %s",
+             (unsigned)stored_ver, (unsigned)stored_sz,
+             (unsigned)cur_ver, (unsigned)cur_sz,
+             LOG_FILE_PATH);
+
+    unlink(LOG_FILE_PATH);
+
+    ESP_ERROR_CHECK(nvs_set_u32(h, NVS_KEY_LOG_VER, cur_ver));
+    ESP_ERROR_CHECK(nvs_set_u32(h, NVS_KEY_LOG_SIZE, cur_sz));
+    err = nvs_commit(h);
+
+    nvs_close(h);
+    return err;
+}
 
 int battery_log_append(const battery_log_t *log)
 {
