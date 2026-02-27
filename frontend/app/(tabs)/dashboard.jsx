@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import {
   View,
   Text,
@@ -14,26 +14,7 @@ import {
   ThermometerIcon,
   CellImbalanceWarning,
 } from "../../components";
-
-// ---------------------------------------------------------------------------
-// Static battery data — will be replaced with live BLE data from ESP32 later
-// ---------------------------------------------------------------------------
-const BATTERY_DATA = {
-  nominalVoltage: 51.2,
-  capacityWh: 5222,
-  minCellVoltage: 3.57,
-  maxCellVoltage: 3.62,
-  totalBatteryVoltage: 57.44,
-  cellTemperature: 37.0,
-  currentAmps: -19.83,
-  outputVoltage: 56.87,
-  stateOfCharge: 100, // percentage 0-100
-  chargingStatus: "INACTIVE",
-  cellVoltages: [
-    3.58, 3.6, 3.59, 3.59, 3.6, 3.60, 3.62, 3.62, 3.59, 3.58, 3.57, 3.58,
-    3.59, 3.58, 3.58, 3.6,
-  ],
-};
+import { BLEContext } from "../../context/BLEContext";
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -42,7 +23,30 @@ export default function Dashboard() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? "dark" : "light";
   const colors = Colors[theme];
-  const d = BATTERY_DATA;
+  const { telemetryData } = useContext(BLEContext);
+
+  if (!telemetryData) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Waiting for Telemetry Data...</Text>
+        <Text style={[styles.subtitle, { color: colors.text }]}>Connect to a device from the Bluetooth screen.</Text>
+      </View>
+    );
+  }
+
+  const d = {
+    nominalVoltage: 51.2, // This can be a constant or derived if needed
+    capacityWh: 5222, // This can be a constant or derived if needed
+    minCellVoltage: Math.min(...telemetryData.cell_mv) / 1000,
+    maxCellVoltage: Math.max(...telemetryData.cell_mv) / 1000,
+    totalBatteryVoltage: telemetryData.pack_total_mv / 1000,
+    cellTemperature: telemetryData.temp_ts1_c_x100 / 100,
+    currentAmps: telemetryData.current_ma / 1000,
+    outputVoltage: telemetryData.pack_ld_mv / 1000,
+    stateOfCharge: telemetryData.soc,
+    chargingStatus: telemetryData.current_ma > 0 ? "CHARGING" : "INACTIVE",
+    cellVoltages: telemetryData.cell_mv.map(v => v / 1000),
+  };
 
   // Compute cell voltage stats for highlighting min/max & imbalance
   const minV = Math.min(...d.cellVoltages);
@@ -77,7 +81,7 @@ export default function Dashboard() {
         <StatTile
           label="Current (A)"
           value={d.currentAmps.toFixed(3)}
-          valueColor={colors.error}
+          valueColor={d.currentAmps > 0 ? colors.success : colors.error}
           colors={colors}
         />
 
