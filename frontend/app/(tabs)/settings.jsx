@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../context";
 import { Colors } from "../../constants/Colors";
+import VersionDisplay from '../../components/VersionDisplay';
 
 // ---------------------------------------------------------------------------
 // Static settings data — will be replaced with live data from ESP32 later
@@ -47,7 +48,7 @@ export default function Settings() {
     try {
       await logout();
     } catch (error) {
-      console.error("Error logging out:", error);
+      console.error('Error logging out:', error);
     }
   };
 
@@ -200,6 +201,8 @@ export default function Settings() {
             Sign out
           </Text>
         </TouchableOpacity>
+
+        <VersionDisplay/>
       </View>
     </ScrollView>
   );
