@@ -1,16 +1,29 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    StyleSheet,
+    LayoutAnimation,
+    UIManager,
+    Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 /**
- * An interactive dropdown selector that expands to show options.
+ * An interactive dropdown selector with animated expand/collapse.
  *
- * @param {string}   label       – section label above the dropdown
- * @param {string[]} options     – list of option strings
+ * @param {string}   label         – section label above the dropdown
+ * @param {string[]} options       – list of option strings
  * @param {number}   selectedIndex – currently selected index
- * @param {function} onSelect    – callback(index) when an option is tapped
- * @param {string}   [subText]   – optional info text below the dropdown
- * @param {object}   colors      – theme colours
+ * @param {function} onSelect      – callback(index) when an option is tapped
+ * @param {string}   [subText]     – optional info text below the dropdown
+ * @param {object}   colors        – theme colours
  * @param {React.ReactNode} [labelRight] – optional element to the right of the label
  */
 export const SettingsDropdown = ({
@@ -24,6 +37,11 @@ export const SettingsDropdown = ({
 }) => {
     const [open, setOpen] = useState(false);
 
+    const toggle = () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setOpen(!open);
+    };
+
     return (
         <View style={styles.container}>
             <View style={styles.labelRow}>
@@ -34,7 +52,7 @@ export const SettingsDropdown = ({
             {/* Selected value / trigger */}
             <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => setOpen(!open)}
+                onPress={toggle}
                 style={[
                     styles.dropdown,
                     {
@@ -53,7 +71,7 @@ export const SettingsDropdown = ({
                 />
             </TouchableOpacity>
 
-            {/* Options list */}
+            {/* Options list (animated) */}
             {open && (
                 <View
                     style={[
@@ -71,6 +89,9 @@ export const SettingsDropdown = ({
                                 key={i}
                                 activeOpacity={0.6}
                                 onPress={() => {
+                                    LayoutAnimation.configureNext(
+                                        LayoutAnimation.Presets.easeInEaseOut
+                                    );
                                     onSelect(i);
                                     setOpen(false);
                                 }}
