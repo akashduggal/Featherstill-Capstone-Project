@@ -129,36 +129,19 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
     return 0;
 }
 
-static int live_access_cb(uint16_t conn_handle, uint16_t attr_handle,
+static int notify_only_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                           struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     (void)conn_handle;
     (void)attr_handle;
+    (void)ctxt;
     (void)arg;
 
-    battery_log_t rec;
-    build_mock(&rec);
-
-    int rc = os_mbuf_append(ctxt->om, &rec, sizeof(rec));
-    return (rc == 0) ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    // This characteristic is notify-only in our design.
+    // If a client tries to read it anyway, deny.
+    return BLE_ATT_ERR_READ_NOT_PERMITTED;
 }
 
-void ble_batt_mock_notify_mock(void)
-{
-    if (!ble_batt_mock_is_subscribed()) return;
-
-    battery_log_t rec;
-    build_mock(&rec);
-
-    struct os_mbuf *om = ble_hs_mbuf_from_flat(&rec, sizeof(rec));
-    if (!om) return;
-
-    int rc = ble_gatts_notify_custom(s_conn, s_live_val_handle, om);
-    if (rc != 0) {
-        ESP_LOGW(TAG, "notify rc=%d", rc);
-        os_mbuf_free_chain(om);
-    }
-}
 
 int ble_batt_mock_notify_backlog(const battery_log_t *rec)
 {
@@ -193,8 +176,8 @@ static const struct ble_gatt_svc_def g_svcs[] = {
         .characteristics = (struct ble_gatt_chr_def[]) {
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe1),
-                .access_cb = live_access_cb,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
+                .access_cb = notify_only_access_cb,
+                .flags =  BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_live_val_handle,
             },
             {
@@ -205,7 +188,7 @@ static const struct ble_gatt_svc_def g_svcs[] = {
             },
             {
                 .uuid = BLE_UUID128_DECLARE(0xaa,0xaa,0xaa,0xaa,0xbb,0xbb,0xcc,0xcc,0xdd,0xdd,0xee,0xee,0xee,0xee,0xee,0xe3),
-                .access_cb = live_access_cb, 
+                .access_cb = notify_only_access_cb, 
                 .flags = BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_backlog_val_handle,
             },

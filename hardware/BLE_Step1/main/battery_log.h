@@ -26,7 +26,7 @@ typedef struct __attribute__((packed)) {
 } battery_log_t;
 
 #define LOG_RECORD_VERSION 2
-#define LOG_RECORD_SIZE_BYTES 56  // set to your exact sizeof(battery_log_t)
+#define LOG_RECORD_SIZE_BYTES 56  // set to exact sizeof(battery_log_t)
 
 _Static_assert(sizeof(battery_log_t) == LOG_RECORD_SIZE_BYTES,
                "battery_log_t size changed! Bump LOG_RECORD_VERSION and migrate/wipe battery.bin");
@@ -57,3 +57,5 @@ int battery_log_count(void);
 bool battery_log_read(int index, battery_log_t *out);
 
 esp_err_t log_maybe_wipe_on_format_change(void);
+
+uint32_t battery_log_next_seq(void);
