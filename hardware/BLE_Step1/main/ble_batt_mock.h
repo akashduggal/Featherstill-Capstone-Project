@@ -9,7 +9,6 @@ void ble_batt_mock_on_disconnect(void);
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled);
 
 bool ble_batt_mock_is_subscribed(void);
-void ble_batt_mock_notify_mock(void);
 
 
 bool ble_backlog_requested(void);

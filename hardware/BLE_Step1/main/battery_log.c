@@ -16,6 +16,12 @@
 #define NVS_KEY_LOG_SIZE      "log_sz"
 static const char *TAG = "BATTERY_LOG";
 static const char *LOG_FILE = "/littlefs/battery.bin";
+static uint32_t g_seq_next = 0;
+
+uint32_t battery_log_next_seq(void)
+{
+    return g_seq_next++;
+}
 
 static esp_err_t nvs_get_u32_safe(nvs_handle_t h, const char *key, uint32_t *out, bool *found)
 {
