@@ -3,6 +3,7 @@
 
 #include "nvs_flash.h"
 #include "esp_err.h"
+#include "esp_spi_flash.h" 
 
 #include "ble_stack.h"
 #include "ble_batt_mock.h"
@@ -21,6 +22,9 @@
 
 static const char *TAGT = "APP_MAIN";
 
+const TickType_t mbuf_retry_delay   = pdMS_TO_TICKS(200);
+
+
 static void mock_sender_task(void *arg)
 {
     (void)arg;
@@ -33,6 +37,7 @@ static void mock_sender_task(void *arg)
             if (ble_batt_is_sending_backlog()) {
                 ESP_LOGI(TAGT, "BACKLOG: request ignored - already sending");
                 ble_backlog_clear_request();
+                vTaskDelay(pdMS_TO_TICKS(200));
                 continue;
             }
 
@@ -54,8 +59,14 @@ static void mock_sender_task(void *arg)
                     printf("BACKLOG: notify rc=%d i=%d - aborting\n", rc, i);
                     break;
                 }
+                    if (rc == -2) { // mbuf alloc failed
+                    ESP_LOGW(TAGT, "BACKLOG: mbuf alloc failed, cooling down and retry i=%d", i);
+                    vTaskDelay(mbuf_retry_delay);
+                    i--; // retry same record
+                    continue;
+                }
 
-                vTaskDelay(pdMS_TO_TICKS(15));
+                vTaskDelay(pdMS_TO_TICKS(35));
             }
 
             printf("BACKLOG: done\n");
@@ -86,13 +97,14 @@ static void mock_sender_task(void *arg)
 void app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
+    
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
     }
-
     storage_init();     // mount first
     log_maybe_wipe_on_format_change();
+    battery_log_seq_init();
     ble_stack_start();  // start BLE after FS is ready
 
     // (Remove test_battery_log_append now — already tested)

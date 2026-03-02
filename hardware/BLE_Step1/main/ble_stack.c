@@ -40,7 +40,7 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
     (void)arg;
 
     switch (event->type) {
-
+    
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             s_conn_handle = event->connect.conn_handle;
@@ -51,6 +51,10 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
             start_advertising();
         }
         return 0;
+    case BLE_GAP_EVENT_MTU:
+    ESP_LOGI(TAG, "MTU updated: conn=%d mtu=%d",
+             event->mtu.conn_handle, event->mtu.value);
+    return 0;
 
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "Disconnected; reason=%d", event->disconnect.reason);
@@ -146,6 +150,7 @@ void ble_stack_start(void)
     ble_hs_cfg.sm_sc = BLE_ENABLE_BONDING;
     ble_hs_cfg.sm_mitm = 0;
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
+    ble_att_set_preferred_mtu(247);
 
     #if BLE_ENABLE_BONDING
     ble_store_config_init();
