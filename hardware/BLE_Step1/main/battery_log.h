@@ -59,3 +59,4 @@ bool battery_log_read(int index, battery_log_t *out);
 esp_err_t log_maybe_wipe_on_format_change(void);
 
 uint32_t battery_log_next_seq(void);
+esp_err_t battery_log_seq_init(void);
