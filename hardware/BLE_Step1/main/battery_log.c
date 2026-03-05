@@ -301,3 +301,48 @@ bool battery_log_read(int index, battery_log_t *out)
 
     return true;
 }
+int battery_log_find_start_index_by_seq(uint32_t start_seq)
+{
+    int count = battery_log_count();
+    if (count <= 0) return 0;
+
+    FILE *f = fopen(LOG_FILE, "rb");
+    if (!f) {
+        ESP_LOGE(TAG, "Failed to open %s for seq search: errno=%d (%s)",
+                 LOG_FILE, errno, strerror(errno));
+        return 0; 
+    }
+
+    int lo = 0;
+    int hi = count;  
+
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+
+        off_t offset = (off_t)mid * (off_t)sizeof(battery_log_t);
+        if (fseeko(f, offset, SEEK_SET) != 0) {
+            ESP_LOGE(TAG, "fseeko failed mid=%d offset=%" PRIiMAX " errno=%d (%s)",
+                     mid, (intmax_t)offset, errno, strerror(errno));
+            fclose(f);
+            return 0;
+        }
+
+        battery_log_t rec;
+        size_t nr = fread(&rec, 1, sizeof(rec), f);
+        if (nr != sizeof(rec)) {
+            ESP_LOGE(TAG, "fread failed mid=%d got=%u want=%u errno=%d (%s)",
+                     mid, (unsigned)nr, (unsigned)sizeof(rec), errno, strerror(errno));
+            fclose(f);
+            return 0;
+        }
+
+        if (rec.seq < start_seq) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+
+    fclose(f);
+    return lo; 
+}
