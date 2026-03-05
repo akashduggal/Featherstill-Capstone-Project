@@ -37,6 +37,14 @@ static void mock_sender_task(void *arg)
                 continue;
             }
 
+            // Gate on backlog subscription
+            if (!ble_backlog_is_subscribed()) {
+                ESP_LOGI(TAGT, "BACKLOG: request ignored - backlog not subscribed");
+                ble_backlog_clear_request();
+                vTaskDelay(pdMS_TO_TICKS(200));
+                continue;
+            }
+
             ble_batt_set_sending_backlog(true);
             ble_backlog_clear_request();
 
@@ -57,7 +65,15 @@ static void mock_sender_task(void *arg)
             if (start_idx >= count) {
                 printf("BACKLOG: nothing to send (start_idx=%d count=%d)\n", start_idx, count);
             } else {
+
+                ble_backlog_clear_abort();
                 for (int i = start_idx; i < count; i++) {
+                    // Check for abort request during sending
+                    if (ble_backlog_abort_requested()) {
+                        ESP_LOGI(TAGT, "BACKLOG: abort signal received at i=%d", i);
+                        break;
+                    }
+
                     battery_log_t rec;
                     if (!battery_log_read(i, &rec)) {
                         printf("BACKLOG: read failed i=%d\n", i);
@@ -85,7 +101,7 @@ static void mock_sender_task(void *arg)
                         break;
                     }
 
-                    vTaskDelay(pdMS_TO_TICKS(35));
+                    vTaskDelay(pdMS_TO_TICKS(20));
                 }
             }
             printf("BACKLOG: done\n");
