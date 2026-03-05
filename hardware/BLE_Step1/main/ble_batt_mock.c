@@ -109,24 +109,56 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         return BLE_ATT_ERR_UNLIKELY;
     }
 
+    uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
+    if (len < 1) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
     uint8_t cmd = 0;
     int rc = os_mbuf_copydata(ctxt->om, 0, 1, &cmd);
     if (rc != 0) {
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
 
-    if (cmd == 0x01) {
-        if (s_is_sending_backlog) {
-            ESP_LOGI(TAG, "Backlog request ignored: already sending");
-        } else {
-            s_backlog_requested = true;
-            ESP_LOGI(TAG, "Backlog requested (CMD=0x01)");
-        }
-    } else {
-        ESP_LOGW(TAG, "Unknown CMD=0x%02X", cmd);
+    if (cmd != 0x01) {
+        ESP_LOGW(TAG, "Unknown CMD=0x%02X (len=%u)", cmd, (unsigned)len);
+        return 0;
     }
 
-    return 0;
+    if (s_is_sending_backlog) {
+        ESP_LOGI(TAG, "Backlog request ignored: already sending");
+        return 0;
+    }
+
+    // Legacy: [01]
+    if (len == 1) {
+        s_backlog_req.mode = BACKLOG_MODE_FULL;
+        s_backlog_req.start_seq = 0;
+        s_backlog_requested = true;
+
+        ESP_LOGI(TAG, "Backlog requested: FULL (CMD=0x01, len=1)");
+        return 0;
+    }
+
+    // New: [01][u32 start_seq LE] => len == 5
+    if (len == 5) {
+        uint8_t buf[5] = {0};
+        rc = os_mbuf_copydata(ctxt->om, 0, 5, buf);
+        if (rc != 0) {
+            return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+        }
+
+        s_backlog_req.mode = BACKLOG_MODE_FROM_SEQ;
+        s_backlog_req.start_seq = u32_le(&buf[1]);
+        s_backlog_requested = true;
+
+        ESP_LOGI(TAG, "Backlog requested: FROM_SEQ start_seq=%u (CMD=0x01, len=5)",
+                 (unsigned)s_backlog_req.start_seq);
+        return 0;
+    }
+
+    ESP_LOGW(TAG, "Backlog CMD=0x01 invalid len=%u (expected 1 or 5)", (unsigned)len);
+    return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
 }
 
 static int notify_only_access_cb(uint16_t conn_handle, uint16_t attr_handle,
