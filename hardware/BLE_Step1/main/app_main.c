@@ -3,7 +3,6 @@
 
 #include "nvs_flash.h"
 #include "esp_err.h"
-#include "esp_spi_flash.h" 
 
 #include "ble_stack.h"
 #include "ble_batt_mock.h"
@@ -15,8 +14,6 @@
 #include <inttypes.h>
 
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include <dirent.h>
 
 static const char *TAGT = "APP_MAIN";

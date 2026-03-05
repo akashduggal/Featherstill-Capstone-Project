@@ -28,8 +28,22 @@ static uint16_t s_backlog_val_handle = 0;
 static bool s_backlog_notify = false;
 static volatile bool s_is_sending_backlog = false;
 
+static volatile backlog_request_t s_backlog_req = {
+    .mode = BACKLOG_MODE_FULL,
+    .start_seq = 0,
+};
+
+backlog_request_t ble_backlog_get_request(void)
+{
+    backlog_request_t r;
+    r.mode = s_backlog_req.mode;
+    r.start_seq = s_backlog_req.start_seq;
+    return r;
+}
+
 bool ble_backlog_requested(void) { return s_backlog_requested; }
 void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+
 
 void ble_batt_set_sending_backlog(bool v)
 {
@@ -96,6 +110,14 @@ static void build_mock(battery_log_t *r)
 
     // SOC 0–100
     r->soc = (uint8_t)rand_u16(0, 100);
+}
+
+static uint32_t u32_le(const uint8_t *p)
+{
+    return ((uint32_t)p[0]) |
+           ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
 }
 
 static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
@@ -285,6 +307,8 @@ void ble_batt_mock_on_disconnect(void)
     s_backlog_notify = false;
     s_backlog_requested = false;
     s_is_sending_backlog = false;
+    s_backlog_req.mode = BACKLOG_MODE_FULL;
+    s_backlog_req.start_seq = 0;
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
