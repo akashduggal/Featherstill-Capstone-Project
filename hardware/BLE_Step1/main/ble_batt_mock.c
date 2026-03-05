@@ -23,6 +23,7 @@ static bool s_live_notify = false;
 
 static uint16_t s_cmd_val_handle = 0;
 static volatile bool s_backlog_requested = false;
+static volatile bool s_backlog_abort = false;
 
 static uint16_t s_backlog_val_handle = 0;
 static bool s_backlog_notify = false;
@@ -43,6 +44,17 @@ backlog_request_t ble_backlog_get_request(void)
 
 bool ble_backlog_requested(void) { return s_backlog_requested; }
 void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+
+bool ble_backlog_is_subscribed(void) { return s_backlog_notify && s_conn != BLE_HS_CONN_HANDLE_NONE; }
+
+bool ble_backlog_abort_requested(void)
+{
+    if (s_backlog_abort) {
+        s_backlog_abort = false;  // clear on read
+        return true;
+    }
+    return false;
+}
 
 
 void ble_batt_set_sending_backlog(bool v)
@@ -140,6 +152,13 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
     int rc = os_mbuf_copydata(ctxt->om, 0, 1, &cmd);
     if (rc != 0) {
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
+    if (cmd == 0x03) {
+        // Abort backlog send
+        s_backlog_abort = true;
+        ESP_LOGI(TAG, "Backlog abort requested (CMD=0x03)");
+        return 0;
     }
 
     if (cmd != 0x01) {
