@@ -14,7 +14,6 @@
 #include <time.h>
 #include <inttypes.h>
 
-#include "battery_log.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -45,30 +44,53 @@ static void mock_sender_task(void *arg)
             ble_backlog_clear_request();
 
             int count = battery_log_count();
-            printf("BACKLOG: start count=%d\n", count);
 
-            for (int i = 0; i < count; i++) {
-                battery_log_t rec;
-                if (!battery_log_read(i, &rec)) {
-                    printf("BACKLOG: read failed i=%d\n", i);
-                    continue;
-                }
+            backlog_request_t req = ble_backlog_get_request();
+            int start_idx = 0;
 
-                int rc = ble_batt_mock_notify_backlog(&rec);
-                if (rc != 0) {
-                    printf("BACKLOG: notify rc=%d i=%d - aborting\n", rc, i);
-                    break;
-                }
-                    if (rc == -2) { // mbuf alloc failed
-                    ESP_LOGW(TAGT, "BACKLOG: mbuf alloc failed, cooling down and retry i=%d", i);
-                    vTaskDelay(mbuf_retry_delay);
-                    i--; // retry same record
-                    continue;
-                }
-
-                vTaskDelay(pdMS_TO_TICKS(35));
+            if (req.mode == BACKLOG_MODE_FROM_SEQ) {
+                start_idx = battery_log_find_start_index_by_seq(req.start_seq);
+            } else {
+                start_idx = 0;
             }
 
+            printf("BACKLOG: start count=%d start_idx=%d mode=%d start_seq=%u\n",
+                count, start_idx, (int)req.mode, (unsigned)req.start_seq);
+
+            if (start_idx >= count) {
+                printf("BACKLOG: nothing to send (start_idx=%d count=%d)\n", start_idx, count);
+            } else {
+                for (int i = start_idx; i < count; i++) {
+                    battery_log_t rec;
+                    if (!battery_log_read(i, &rec)) {
+                        printf("BACKLOG: read failed i=%d\n", i);
+                        continue;
+                    }
+
+                    
+                    if (i == start_idx) {
+                        printf("BACKLOG: first seq=%u idx=%u\n",
+                            (unsigned)rec.seq, (unsigned)i);
+                    }
+
+                    int rc = ble_batt_mock_notify_backlog(&rec);
+
+                    
+                    if (rc == -2) { // mbuf alloc failed
+                        ESP_LOGW(TAGT, "BACKLOG: mbuf alloc failed, cooling down and retry i=%d", i);
+                        vTaskDelay(mbuf_retry_delay);
+                        i--; // retry same record
+                        continue;
+                    }
+
+                    if (rc != 0) {
+                        printf("BACKLOG: notify rc=%d i=%d - aborting\n", rc, i);
+                        break;
+                    }
+
+                    vTaskDelay(pdMS_TO_TICKS(35));
+                }
+            }
             printf("BACKLOG: done\n");
             vTaskDelay(backlog_cooldown);
             ble_batt_set_sending_backlog(false);
