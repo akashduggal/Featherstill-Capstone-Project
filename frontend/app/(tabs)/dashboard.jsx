@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useContext } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   useColorScheme,
-  Alert,
 } from "react-native";
 import { Colors } from "../../constants/Colors";
 import {
@@ -15,30 +14,7 @@ import {
   ThermometerIcon,
   CellImbalanceWarning,
 } from "../../components";
-import { useAuth } from "../../context";
-import { postBatteryReading } from "../../services/batteryApi";
-import { getUserIdentifier } from "../../utils/userIdentifier";
-import { Button } from '../../components';
-
-// ---------------------------------------------------------------------------
-// Static battery data — will be replaced with live BLE data from ESP32 later
-// ---------------------------------------------------------------------------
-const BATTERY_DATA = {
-  nominalVoltage: 51.2,
-  capacityWh: 5222,
-  minCellVoltage: 3.57,
-  maxCellVoltage: 3.62,
-  totalBatteryVoltage: 57.44,
-  cellTemperature: 37.0,
-  currentAmps: -19.83,
-  outputVoltage: 56.87,
-  stateOfCharge: 100, // percentage 0-100
-  chargingStatus: "INACTIVE",
-  cellVoltages: [
-    3.58, 3.6, 3.59, 3.59, 3.6, 3.60, 3.62, 3.62, 3.59, 3.58, 3.57, 3.58,
-    3.59, 3.58, 3.58, 3.6,
-  ],
-};
+import { BLEContext } from "../../context/BLEContext";
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -47,48 +23,30 @@ export default function Dashboard() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? "dark" : "light";
   const colors = Colors[theme];
-  const d = BATTERY_DATA;
-  const { user, isGuest } = useAuth();
-  const [isPosting, setIsPosting] = useState(false);
-  const [lastPostTime, setLastPostTime] = useState(null);
-  const [postStatus, setPostStatus] = useState("idle");
-  const postIntervalRef = useRef(null);
-  // Hardcoded batteryId for MVP
-  const batteryId = "primary-battery";
+  const { telemetryData } = useContext(BLEContext);
 
-  // Post battery data to backend
-  const handlePostBatteryData = async () => {
-    if (isPosting) return;
-    setIsPosting(true);
-    const email = getUserIdentifier(user, isGuest);
-    const result = await postBatteryReading(BATTERY_DATA, email, batteryId);
-    if (result.success) {
-      setLastPostTime(new Date().toLocaleTimeString());
-      setPostStatus("success");
-      console.log("✓ Battery data posted successfully");
-    } else {
-      setPostStatus("error");
-      console.error("✗ Failed to post battery data:", result.error);
-      Alert.alert(
-        "Post Failed",
-        `Could not post battery data: ${result.error}`
-      );
-    }
-    setIsPosting(false);
+  if (!telemetryData) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Waiting for Telemetry Data...</Text>
+        <Text style={[styles.subtitle, { color: colors.text }]}>Connect to a device from the Bluetooth screen.</Text>
+      </View>
+    );
+  }
+
+  const d = {
+    nominalVoltage: 51.2,
+    capacityWh: 5222,
+    minCellVoltage: Math.min(...telemetryData.cell_mv) / 1000,
+    maxCellVoltage: Math.max(...telemetryData.cell_mv) / 1000,
+    totalBatteryVoltage: telemetryData.pack_total_mv / 1000,
+    cellTemperature: telemetryData.temp_ts1_c_x100 / 100,
+    currentAmps: telemetryData.current_ma / 1000,
+    outputVoltage: telemetryData.pack_ld_mv / 1000,
+    stateOfCharge: telemetryData.soc,
+    chargingStatus: telemetryData.current_ma > 0 ? "CHARGING" : "INACTIVE",
+    cellVoltages: telemetryData.cell_mv.map(v => v / 1000),
   };
-
-  // Auto-post every minute
-  useEffect(() => {
-    handlePostBatteryData(); // Initial post
-    postIntervalRef.current = setInterval(() => {
-      handlePostBatteryData();
-    }, 60000);
-    return () => {
-      if (postIntervalRef.current) {
-        clearInterval(postIntervalRef.current);
-      }
-    };
-  }, [user, isGuest]);
 
   // Compute cell voltage stats for highlighting min/max & imbalance
   const minV = Math.min(...d.cellVoltages);
@@ -101,17 +59,12 @@ export default function Dashboard() {
       contentContainerStyle={styles.container}
     >
       {/* ── Title ──────────────────────────────────────────────── */}
-      <Text style={[styles.title, { color: colors.text }]}> 
+      <Text style={[styles.title, { color: colors.text }]}>
         Fetherstill Data Console
       </Text>
 
-      <Button
-        title="Send Test Reading"
-        onPress={handlePostBatteryData}
-      />
-
       {/* ── Subtitle ───────────────────────────────────────────── */}
-      <Text style={[styles.subtitle, { color: colors.text }]}> 
+      <Text style={[styles.subtitle, { color: colors.text }]}>
         Battery Data – {d.nominalVoltage}V | {d.capacityWh.toLocaleString()}Wh
       </Text>
 
@@ -136,11 +89,11 @@ export default function Dashboard() {
 
         {/* Cell Temperature with thermometer */}
         <View style={styles.tempTile}>
-          <Text style={[styles.statLabel, { color: colors.icon }]}> 
+          <Text style={[styles.statLabel, { color: colors.icon }]}>
             Cell Temperature
           </Text>
           <View style={styles.tempValueRow}>
-            <Text style={[styles.tempValue, { color: colors.text }]}> 
+            <Text style={[styles.tempValue, { color: colors.text }]}>
               {d.cellTemperature.toFixed(1)} °C
             </Text>
             <ThermometerIcon
@@ -155,21 +108,21 @@ export default function Dashboard() {
       {/* ── State of Charge & Charging Status ──────────────────── */}
       <View style={styles.socRow}>
         <View style={styles.socBlock}>
-          <Text style={[styles.statLabel, { color: colors.icon }]}> 
+          <Text style={[styles.statLabel, { color: colors.icon }]}>
             State of Charge
           </Text>
           <BatteryIcon percentage={d.stateOfCharge} size={36} colors={colors} />
-          <Text style={[styles.socPct, { color: colors.text }]}> 
+          <Text style={[styles.socPct, { color: colors.text }]}>
             {d.stateOfCharge}%
           </Text>
         </View>
 
         <View style={styles.socBlock}>
-          <Text style={[styles.statLabel, { color: colors.icon }]}> 
+          <Text style={[styles.statLabel, { color: colors.icon }]}>
             Charging Status
           </Text>
-          <View style={[styles.badge, { borderColor: colors.text }]}> 
-            <Text style={[styles.badgeText, { color: colors.text }]}> 
+          <View style={[styles.badge, { borderColor: colors.text }]}>
+            <Text style={[styles.badgeText, { color: colors.text }]}>
               {d.chargingStatus}
             </Text>
           </View>
@@ -180,7 +133,7 @@ export default function Dashboard() {
       <CellImbalanceWarning delta={voltageDelta} threshold={0.2} colors={colors} />
 
       {/* ── Cells Voltages ─────────────────────────────────────── */}
-      <Text style={[styles.sectionTitle, { color: colors.text }]}> 
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
         Cells Voltages
       </Text>
 
