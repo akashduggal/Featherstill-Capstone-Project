@@ -65,6 +65,8 @@ static void mock_sender_task(void *arg)
             if (start_idx >= count) {
                 printf("BACKLOG: nothing to send (start_idx=%d count=%d)\n", start_idx, count);
             } else {
+
+                ble_backlog_clear_abort();
                 for (int i = start_idx; i < count; i++) {
                     // Check for abort request during sending
                     if (ble_backlog_abort_requested()) {

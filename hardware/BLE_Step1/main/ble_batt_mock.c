@@ -155,9 +155,14 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
     }
 
     if (cmd == 0x03) {
-        // Abort backlog send
-        s_backlog_abort = true;
-        ESP_LOGI(TAG, "Backlog abort requested (CMD=0x03)");
+        if (s_is_sending_backlog) {
+            s_backlog_abort = true;
+            ESP_LOGI(TAG, "Backlog abort requested (CMD=0x03)");
+        } else {
+           
+            ble_backlog_clear_abort();   // or: s_backlog_abort = false;
+            ESP_LOGI(TAG, "Abort ignored (no backlog in progress)");
+        }
         return 0;
     }
 
@@ -173,9 +178,11 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 
     // Legacy: [01]
     if (len == 1) {
+        ble_backlog_clear_abort();
         s_backlog_req.mode = BACKLOG_MODE_FULL;
         s_backlog_req.start_seq = 0;
         s_backlog_requested = true;
+
 
         ESP_LOGI(TAG, "Backlog requested: FULL (CMD=0x01, len=1)");
         return 0;
@@ -183,6 +190,7 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 
     // New: [01][u32 start_seq LE] => len == 5
     if (len == 5) {
+        ble_backlog_clear_abort();
         uint8_t buf[5] = {0};
         rc = os_mbuf_copydata(ctxt->om, 0, 5, buf);
         if (rc != 0) {
@@ -319,6 +327,7 @@ int ble_batt_mock_notify_live(const battery_log_t *rec)
     return rc;
 }
 
+
 void ble_batt_mock_on_disconnect(void)
 {
     s_conn = BLE_HS_CONN_HANDLE_NONE;
@@ -328,6 +337,10 @@ void ble_batt_mock_on_disconnect(void)
     s_is_sending_backlog = false;
     s_backlog_req.mode = BACKLOG_MODE_FULL;
     s_backlog_req.start_seq = 0;
+    ble_backlog_clear_abort();
+    s_is_sending_backlog = false;   // if you have this flag
+    // also clear request state if you keep it
+
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
