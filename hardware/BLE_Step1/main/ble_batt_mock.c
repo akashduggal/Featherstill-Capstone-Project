@@ -44,6 +44,7 @@ backlog_request_t ble_backlog_get_request(void)
 
 bool ble_backlog_requested(void) { return s_backlog_requested; }
 void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+void ble_backlog_clear_abort(void) { s_backlog_abort = false; }
 
 bool ble_backlog_is_subscribed(void) { return s_backlog_notify && s_conn != BLE_HS_CONN_HANDLE_NONE; }
 
@@ -160,7 +161,7 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
             ESP_LOGI(TAG, "Backlog abort requested (CMD=0x03)");
         } else {
            
-            ble_backlog_clear_abort();   // or: s_backlog_abort = false;
+            s_backlog_abort = false;
             ESP_LOGI(TAG, "Abort ignored (no backlog in progress)");
         }
         return 0;
@@ -335,12 +336,9 @@ void ble_batt_mock_on_disconnect(void)
     s_backlog_notify = false;
     s_backlog_requested = false;
     s_is_sending_backlog = false;
+    ble_backlog_clear_abort();
     s_backlog_req.mode = BACKLOG_MODE_FULL;
     s_backlog_req.start_seq = 0;
-    ble_backlog_clear_abort();
-    s_is_sending_backlog = false;   // if you have this flag
-    // also clear request state if you keep it
-
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)
