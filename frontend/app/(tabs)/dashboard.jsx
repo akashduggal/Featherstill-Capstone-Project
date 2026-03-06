@@ -1,10 +1,11 @@
-import React, { useContext } from "react";
+import React, { useContext, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   useColorScheme,
+  RefreshControl,
 } from "react-native";
 import { Colors } from "../../constants/Colors";
 import {
@@ -15,6 +16,7 @@ import {
   CellImbalanceWarning,
 } from "../../components";
 import { BLEContext } from "../../context/BLEContext";
+import { useSettings } from "../../context/SettingsContext";
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -24,8 +26,26 @@ export default function Dashboard() {
   const theme = colorScheme === "dark" ? "dark" : "light";
   const colors = Colors[theme];
   const { telemetryData } = useContext(BLEContext);
+  const { autoRefresh } = useSettings();
 
-  if (!telemetryData) {
+  // ── Manual refresh state ──────────────────────────────────────
+  const [refreshing, setRefreshing] = useState(false);
+  const [snapshot, setSnapshot] = useState(null);
+
+  // When autoRefresh is OFF, display the snapshot; when ON, display live data
+  const displayData = autoRefresh ? telemetryData : (snapshot || telemetryData);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    // Grab the latest telemetry as a snapshot
+    if (telemetryData) {
+      setSnapshot({ ...telemetryData });
+    }
+    // Brief animation delay to feel natural
+    setTimeout(() => setRefreshing(false), 800);
+  }, [telemetryData]);
+
+  if (!displayData) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
         <Text style={[styles.title, { color: colors.text }]}>Waiting for Telemetry Data...</Text>
@@ -37,15 +57,15 @@ export default function Dashboard() {
   const d = {
     nominalVoltage: 51.2,
     capacityWh: 5222,
-    minCellVoltage: Math.min(...telemetryData.cell_mv) / 1000,
-    maxCellVoltage: Math.max(...telemetryData.cell_mv) / 1000,
-    totalBatteryVoltage: telemetryData.pack_total_mv / 1000,
-    cellTemperature: telemetryData.temp_ts1_c_x100 / 100,
-    currentAmps: telemetryData.current_ma / 1000,
-    outputVoltage: telemetryData.pack_ld_mv / 1000,
-    stateOfCharge: telemetryData.soc,
-    chargingStatus: telemetryData.current_ma > 0 ? "CHARGING" : "INACTIVE",
-    cellVoltages: telemetryData.cell_mv.map(v => v / 1000),
+    minCellVoltage: Math.min(...displayData.cell_mv) / 1000,
+    maxCellVoltage: Math.max(...displayData.cell_mv) / 1000,
+    totalBatteryVoltage: displayData.pack_total_mv / 1000,
+    cellTemperature: displayData.temp_ts1_c_x100 / 100,
+    currentAmps: displayData.current_ma / 1000,
+    outputVoltage: displayData.pack_ld_mv / 1000,
+    stateOfCharge: displayData.soc,
+    chargingStatus: displayData.current_ma > 0 ? "CHARGING" : "INACTIVE",
+    cellVoltages: displayData.cell_mv.map(v => v / 1000),
   };
 
   // Compute cell voltage stats for highlighting min/max & imbalance
@@ -57,6 +77,18 @@ export default function Dashboard() {
     <ScrollView
       style={[styles.scrollView, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.container}
+      refreshControl={
+        !autoRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.tint}
+            colors={[colors.tint]}
+            title="Pull to refresh"
+            titleColor={colors.icon}
+          />
+        ) : undefined
+      }
     >
       {/* ── Title ──────────────────────────────────────────────── */}
       <Text style={[styles.title, { color: colors.text }]}>
@@ -67,6 +99,13 @@ export default function Dashboard() {
       <Text style={[styles.subtitle, { color: colors.text }]}>
         Battery Data – {d.nominalVoltage}V | {d.capacityWh.toLocaleString()}Wh
       </Text>
+
+      {/* ── Mode indicator ─────────────────────────────────────── */}
+      {!autoRefresh && (
+        <Text style={[styles.modeHint, { color: colors.icon }]}>
+          Auto-refresh off · Pull down to refresh
+        </Text>
+      )}
 
       {/* ── Stats Grid ─────────────────────────────────────────── */}
       <View style={styles.statsGrid}>
@@ -178,6 +217,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 24,
+    textAlign: "center",
+  },
+
+  /* Mode hint */
+  modeHint: {
+    fontSize: 13,
+    fontWeight: "500",
+    fontStyle: "italic",
+    marginBottom: 16,
     textAlign: "center",
   },
 
