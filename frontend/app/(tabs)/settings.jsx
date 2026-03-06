@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuth } from "../../context";
+import { useAuth, useSettings } from "../../context";
 import { Colors } from "../../constants/Colors";
 import VersionDisplay from "../../components/VersionDisplay";
 import {
@@ -47,7 +47,7 @@ export default function Settings() {
   // ── Interactive state ────────────────────────────────────────
   const [selectedModuleIndex, setSelectedModuleIndex] = useState(0);
   const [selectedTempUnit, setSelectedTempUnit] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const { autoRefresh, setAutoRefresh } = useSettings();
 
   const selectedModule = s.modules[selectedModuleIndex];
   const hasUpdate = s.currentBmsVersion !== s.newBmsVersion;
