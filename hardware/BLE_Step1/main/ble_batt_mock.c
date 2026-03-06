@@ -179,7 +179,7 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 
     // Legacy: [01]
     if (len == 1) {
-        s_backlog_abort = false;
+        ble_backlog_clear_abort();
         s_backlog_req.mode = BACKLOG_MODE_FULL;
         s_backlog_req.start_seq = 0;
         s_backlog_requested = true;
@@ -191,7 +191,7 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 
     // New: [01][u32 start_seq LE] => len == 5
     if (len == 5) {
-        s_backlog_abort = false;
+        ble_backlog_clear_abort();
         uint8_t buf[5] = {0};
         rc = os_mbuf_copydata(ctxt->om, 0, 5, buf);
         if (rc != 0) {
@@ -336,7 +336,7 @@ void ble_batt_mock_on_disconnect(void)
     s_backlog_notify = false;
     s_backlog_requested = false;
     s_is_sending_backlog = false;
-    s_backlog_abort = false;
+    ble_backlog_clear_abort();
     s_backlog_req.mode = BACKLOG_MODE_FULL;
     s_backlog_req.start_seq = 0;
 }
