@@ -23,13 +23,39 @@ static bool s_live_notify = false;
 
 static uint16_t s_cmd_val_handle = 0;
 static volatile bool s_backlog_requested = false;
+static volatile bool s_backlog_abort = false;
 
 static uint16_t s_backlog_val_handle = 0;
 static bool s_backlog_notify = false;
 static volatile bool s_is_sending_backlog = false;
 
+static volatile backlog_request_t s_backlog_req = {
+    .mode = BACKLOG_MODE_FULL,
+    .start_seq = 0,
+};
+
+backlog_request_t ble_backlog_get_request(void)
+{
+    backlog_request_t r;
+    r.mode = s_backlog_req.mode;
+    r.start_seq = s_backlog_req.start_seq;
+    return r;
+}
+
 bool ble_backlog_requested(void) { return s_backlog_requested; }
 void ble_backlog_clear_request(void) { s_backlog_requested = false; }
+
+bool ble_backlog_is_subscribed(void) { return s_backlog_notify && s_conn != BLE_HS_CONN_HANDLE_NONE; }
+
+bool ble_backlog_abort_requested(void)
+{
+    if (s_backlog_abort) {
+        s_backlog_abort = false;  // clear on read
+        return true;
+    }
+    return false;
+}
+
 
 void ble_batt_set_sending_backlog(bool v)
 {
@@ -98,6 +124,14 @@ static void build_mock(battery_log_t *r)
     r->soc = (uint8_t)rand_u16(0, 100);
 }
 
+static uint32_t u32_le(const uint8_t *p)
+{
+    return ((uint32_t)p[0]) |
+           ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
+}
+
 static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                          struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -109,24 +143,71 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         return BLE_ATT_ERR_UNLIKELY;
     }
 
+    uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
+    if (len < 1) {
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
     uint8_t cmd = 0;
     int rc = os_mbuf_copydata(ctxt->om, 0, 1, &cmd);
     if (rc != 0) {
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
 
-    if (cmd == 0x01) {
+    if (cmd == 0x03) {
         if (s_is_sending_backlog) {
-            ESP_LOGI(TAG, "Backlog request ignored: already sending");
+            s_backlog_abort = true;
+            ESP_LOGI(TAG, "Backlog abort requested (CMD=0x03)");
         } else {
-            s_backlog_requested = true;
-            ESP_LOGI(TAG, "Backlog requested (CMD=0x01)");
+           
+            ble_backlog_clear_abort();   // or: s_backlog_abort = false;
+            ESP_LOGI(TAG, "Abort ignored (no backlog in progress)");
         }
-    } else {
-        ESP_LOGW(TAG, "Unknown CMD=0x%02X", cmd);
+        return 0;
     }
 
-    return 0;
+    if (cmd != 0x01) {
+        ESP_LOGW(TAG, "Unknown CMD=0x%02X (len=%u)", cmd, (unsigned)len);
+        return 0;
+    }
+
+    if (s_is_sending_backlog) {
+        ESP_LOGI(TAG, "Backlog request ignored: already sending");
+        return 0;
+    }
+
+    // Legacy: [01]
+    if (len == 1) {
+        ble_backlog_clear_abort();
+        s_backlog_req.mode = BACKLOG_MODE_FULL;
+        s_backlog_req.start_seq = 0;
+        s_backlog_requested = true;
+
+
+        ESP_LOGI(TAG, "Backlog requested: FULL (CMD=0x01, len=1)");
+        return 0;
+    }
+
+    // New: [01][u32 start_seq LE] => len == 5
+    if (len == 5) {
+        ble_backlog_clear_abort();
+        uint8_t buf[5] = {0};
+        rc = os_mbuf_copydata(ctxt->om, 0, 5, buf);
+        if (rc != 0) {
+            return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+        }
+
+        s_backlog_req.mode = BACKLOG_MODE_FROM_SEQ;
+        s_backlog_req.start_seq = u32_le(&buf[1]);
+        s_backlog_requested = true;
+
+        ESP_LOGI(TAG, "Backlog requested: FROM_SEQ start_seq=%u (CMD=0x01, len=5)",
+                 (unsigned)s_backlog_req.start_seq);
+        return 0;
+    }
+
+    ESP_LOGW(TAG, "Backlog CMD=0x01 invalid len=%u (expected 1 or 5)", (unsigned)len);
+    return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
 }
 
 static int notify_only_access_cb(uint16_t conn_handle, uint16_t attr_handle,
@@ -246,6 +327,7 @@ int ble_batt_mock_notify_live(const battery_log_t *rec)
     return rc;
 }
 
+
 void ble_batt_mock_on_disconnect(void)
 {
     s_conn = BLE_HS_CONN_HANDLE_NONE;
@@ -253,6 +335,12 @@ void ble_batt_mock_on_disconnect(void)
     s_backlog_notify = false;
     s_backlog_requested = false;
     s_is_sending_backlog = false;
+    s_backlog_req.mode = BACKLOG_MODE_FULL;
+    s_backlog_req.start_seq = 0;
+    ble_backlog_clear_abort();
+    s_is_sending_backlog = false;   // if you have this flag
+    // also clear request state if you keep it
+
 }
 
 void ble_batt_mock_on_subscribe(uint16_t attr_handle, bool notify_enabled)

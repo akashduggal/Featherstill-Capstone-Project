@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { AuthProvider, BatteryProvider, useAuth } from '../context';
+import { AuthProvider, BatteryProvider, useAuth, SettingsProvider } from '../context';
 import { BLEProvider } from '../context/BLEContext';
 import { initDB } from '../services/database';
 
@@ -41,11 +41,13 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <BatteryProvider>
-        <BLEProvider>
-          <RootNavigation />
-        </BLEProvider>
-      </BatteryProvider>
+      <SettingsProvider>
+        <BatteryProvider>
+          <BLEProvider>
+            <RootNavigation />
+          </BLEProvider>
+        </BatteryProvider>
+      </SettingsProvider>
     </AuthProvider>
   );
 }
