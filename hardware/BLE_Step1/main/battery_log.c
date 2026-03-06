@@ -114,8 +114,9 @@ static void seq_checkpoint_delete(void)
 uint32_t battery_log_next_seq(void)
 {
     uint32_t assigned = g_seq_next++;
-
     
+    ESP_LOGI(TAG, "Assigned seq = %" PRIu32, assigned);
+
     if ((g_seq_next % SEQ_CHECKPOINT_EVERY_N) == 0) {
         seq_checkpoint_save(g_seq_next);
     }
@@ -125,7 +126,14 @@ uint32_t battery_log_next_seq(void)
 
 esp_err_t battery_log_seq_init(void)
 {
-    return seq_checkpoint_load();
+    esp_err_t err = seq_checkpoint_load();
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Loaded seq_next = %" PRIu32, g_seq_next);
+        if (g_seq_next == 0) {
+            ESP_LOGI(TAG, "Loaded seq_next = 0 (first boot or no checkpoint)");
+        }
+    }
+    return err;
 }
 
 static esp_err_t nvs_get_u32_safe(nvs_handle_t h, const char *key, uint32_t *out, bool *found)

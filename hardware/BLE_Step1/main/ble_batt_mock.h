@@ -28,6 +28,7 @@ bool ble_backlog_is_subscribed(void);
 
 bool ble_backlog_requested(void);
 void ble_backlog_clear_request(void);
+void ble_backlog_clear_abort(void);
 
 /**
  * @brief Check if client has requested backlog abort (CMD 0x03)
