@@ -71,42 +71,54 @@ export const postBatteryReading = async (batteryData, email, batteryId) => {
     };
 
     console.log('[Battery API] Posting reading for battery:', batteryId);
-    console.log('[Battery API] POST URL:', getApiUrl('/api/battery-readings'));
-    // Make POST request
-    const response = await fetch(getApiUrl('/api/battery-readings'), {
+    let url = getApiUrl('/api/battery-readings');
+    // normalize URL if getApiUrl returned host:port/path without scheme
+    if (url && !/^https?:\/\//i.test(url)) {
+      url = `http://${url}`;
+    }
+    console.log('[Battery API] POST URL:', url);
+    console.log('[Battery API] Payload:', JSON.stringify(payload));
+
+    // Use AbortController for timeout
+    const controller = new AbortController();
+    const timeoutMs = (API_CONFIG && API_CONFIG.TIMEOUT) ? API_CONFIG.TIMEOUT : 10000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      timeout: API_CONFIG.TIMEOUT,
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     // Handle response
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorData.error || `HTTP ${response.status}`;
-      console.error('[Battery API] POST failed:', errorMessage);
-      
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      const details = Array.isArray(errorData.details) ? errorData.details.join(', ') : (errorData.details || '');
+      const fullError = details ? `${errorMessage}: ${details}` : errorMessage;
+
+      console.error('[Battery API] POST failed:', fullError);
+      console.error('[Battery API] Full error response:', JSON.stringify(errorData, null, 2));
+
+      return { success: false, error: fullError };
     }
 
     const responseData = await response.json();
     console.log('[Battery API] POST successful:', responseData);
 
-    return {
-      success: true,
-      data: responseData.data,
-    };
+    return { success: true, data: responseData.data };
   } catch (error) {
-    console.error('[Battery API] Request failed:', error.message);
-    return {
-      success: false,
-      error: error.message || 'Network error',
-    };
+    console.error('[Battery API] Request failed:', error && error.message, error);
+    if (error && error.name === 'AbortError') {
+      return { success: false, error: 'Request timeout - server not responding' };
+    }
+    if (error && error.message === 'Network request failed') {
+      console.error('[Battery API] Hint: device/emulator cannot reach the URL (check Wi‑Fi, Expo mode, EC2 security group, and HTTP scheme).');
+    }
+    return { success: false, error: (error && error.message) || 'Network error' };
   }
 };
 
@@ -132,16 +144,22 @@ export const getBatteryReadings = async (email, options = {}) => {
     const offset = options.offset || 0;
     const query = new URLSearchParams({ limit, offset });
 
-    const response = await fetch(
-      getApiUrl(`/api/battery-readings/${email}?${query}`),
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout: API_CONFIG.TIMEOUT,
-      }
-    );
+    let url = getApiUrl(`/api/battery-readings/${email}?${query}`);
+    if (url && !/^https?:\/\//i.test(url)) {
+      url = `http://${url}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutMs = (API_CONFIG && API_CONFIG.TIMEOUT) ? API_CONFIG.TIMEOUT : 10000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -149,17 +167,13 @@ export const getBatteryReadings = async (email, options = {}) => {
 
     const responseData = await response.json();
 
-    return {
-      success: true,
-      data: responseData.data,
-      pagination: responseData.pagination,
-    };
+    return { success: true, data: responseData.data, pagination: responseData.pagination };
   } catch (error) {
-    console.error('[Battery API] Get readings failed:', error.message);
-    return {
-      success: false,
-      error: error.message || 'Failed to fetch readings',
-    };
+    console.error('[Battery API] Get readings failed:', error && error.message, error);
+    if (error && error.name === 'AbortError') {
+      return { success: false, error: 'Request timeout - server not responding' };
+    }
+    return { success: false, error: (error && error.message) || 'Failed to fetch readings' };
   }
 };
 
@@ -178,16 +192,22 @@ export const getLatestBatteryReading = async (email) => {
       };
     }
 
-    const response = await fetch(
-      getApiUrl(`/api/battery-readings/${email}/latest`),
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout: API_CONFIG.TIMEOUT,
-      }
-    );
+    let url = getApiUrl(`/api/battery-readings/${email}/latest`);
+    if (url && !/^https?:\/\//i.test(url)) {
+      url = `http://${url}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutMs = (API_CONFIG && API_CONFIG.TIMEOUT) ? API_CONFIG.TIMEOUT : 10000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -195,15 +215,67 @@ export const getLatestBatteryReading = async (email) => {
 
     const responseData = await response.json();
 
-    return {
-      success: true,
-      data: responseData.data,
-    };
+    return { success: true, data: responseData.data };
   } catch (error) {
-    console.error('[Battery API] Get latest failed:', error.message);
-    return {
-      success: false,
-      error: error.message || 'Failed to fetch latest reading',
+    console.error('[Battery API] Get latest failed:', error && error.message, error);
+    if (error && error.name === 'AbortError') {
+      return { success: false, error: 'Request timeout - server not responding' };
+    }
+    return { success: false, error: (error && error.message) || 'Failed to fetch latest reading' };
+  }
+};
+
+// Replace existing testConnectivity with this normalized version
+export const testConnectivity = async (timeoutMs = 5000) => {
+  // helper to perform a fetch with timeout and return a small result object
+  const tryFetch = async (url, timeout) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+      const res = await fetch(url, { method: 'GET', signal: controller.signal });
+      clearTimeout(timeoutId);
+      return { ok: res.ok, status: res.status };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      return { error: err && err.message ? err.message : String(err), name: err && err.name };
+    }
+  };
+
+  try {
+    // 1) Basic internet check against a reliable HTTPS host (example.com)
+    const publicCheck = await tryFetch('https://example.com/', timeoutMs);
+    const internetUp = !publicCheck.error && publicCheck.ok;
+
+    // 2) API server check (use exact API URL from getApiUrl)
+    let apiUrl = getApiUrl('/api/health') || getApiUrl('/api/battery-readings') || '';
+    // Normalize: ensure it has a scheme
+    if (apiUrl && !/^https?:\/\//i.test(apiUrl)) {
+      apiUrl = `http://${apiUrl}`;
+    }
+
+    const serverCheck = await tryFetch(apiUrl, timeoutMs);
+
+    // Build diagnostic result
+    const result = {
+      internet: {
+        reachable: internetUp,
+        status: publicCheck.status || null,
+        error: publicCheck.error || null,
+        errorName: publicCheck.name || null,
+      },
+      server: {
+        url: apiUrl,
+        reachable: !serverCheck.error && serverCheck.ok,
+        status: serverCheck.status || null,
+        error: serverCheck.error || null,
+        errorName: serverCheck.name || null,
+      },
     };
+
+    console.log('[Battery API] testConnectivity result:', JSON.stringify(result, null, 2));
+    return { success: result.server.reachable, result };
+  } catch (err) {
+    console.error('[Battery API] testConnectivity unexpected error:', err && err.message, err);
+    return { success: false, error: err && err.message ? err.message : String(err) };
   }
 };
