@@ -62,11 +62,15 @@ const BatteryReading = sequelize.define(
   {
     tableName: 'battery_readings',
     timestamps: false,
+    indexes: [
+      {
+        fields: ['batteryId'],
+      },
+      {
+        fields: ['createdAt'],
+      },
+    ],
   }
 );
-
-// Add index for faster queries
-BatteryReading.addIndex(['batteryId']);
-BatteryReading.addIndex(['createdAt']);
 
 module.exports = BatteryReading;

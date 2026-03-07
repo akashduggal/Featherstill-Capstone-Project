@@ -22,14 +22,15 @@ const sequelize = new Sequelize(
   }
 );
 
-// Test connection
+// Test connection (don't fail if DB not available)
 sequelize
   .authenticate()
   .then(() => {
     console.log('[Database] PostgreSQL connection established successfully.');
   })
   .catch((err) => {
-    console.error('[Database] Unable to connect to PostgreSQL:', err.message);
+    console.warn('[Database] Not connected to PostgreSQL (OK for development):', err.message);
+    console.warn('[Database] Continuing without database persistence...');
   });
 
 module.exports = sequelize;

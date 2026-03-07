@@ -60,7 +60,7 @@ export default function Dashboard() {
   const handlePostBatteryData = async () => {
     if (isPosting) return;
     setIsPosting(true);
-    const email = getUserIdentifier(user, isGuest);
+    const email = "test@example.com"; // Hardcoded email for testing
     const result = await postBatteryReading(BATTERY_DATA, email, batteryId);
     if (result.success) {
       setLastPostTime(new Date().toLocaleTimeString());

@@ -37,6 +37,16 @@ app.get('/', (req, res) => {
   });
 });
 
+// Health check endpoint (at root level for load balancers)
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
+  });
+});
+
 // API routes
 app.use('/api', apiRoutes);
 
@@ -58,10 +68,15 @@ app.use(errorHandler);
 
 const startServer = async () => {
   try {
-    // Sync database models
-    console.log('[Server] Syncing database models...');
-    await sequelize.sync({ alter: false });
-    console.log('[Server] Database models synced successfully');
+    // Sync database models (optional - don't fail if DB not available)
+    console.log('[Server] Attempting to sync database models...');
+    try {
+      await sequelize.sync({ alter: false });
+      console.log('[Server] Database models synced successfully');
+    } catch (syncError) {
+      console.warn('[Server] Could not sync database models (OK for development):', syncError.message);
+      console.warn('[Server] Server will run without database persistence');
+    }
 
     // Start Express server
     app.listen(PORT, () => {

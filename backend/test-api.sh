@@ -14,8 +14,8 @@ echo "=================================="
 echo ""
 
 # Test 1: Health Check
-echo "1️⃣  Testing /health endpoint..."
-curl -s "$API_URL/health" | jq . || echo "❌ Failed"
+echo "1️⃣  Testing /api/health endpoint..."
+curl -s "$API_URL/api/health" | jq . || echo "❌ Failed"
 echo ""
 sleep 1
 
