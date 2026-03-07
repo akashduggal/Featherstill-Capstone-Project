@@ -48,3 +48,59 @@ export const getTelemetry = () => {
     return [];
   }
 };
+
+export const getUnsyncedTelemetry = () => {
+  try {
+    return db.getAllSync('SELECT * FROM telemetry WHERE synced = 0 LIMIT 50');
+  } catch (error) {
+    console.error("Error fetching unsynced data:", error);
+    return [];
+  }
+};
+
+/**
+ * Marks given id records as synced after giving to backend.
+ * @param {Array<number>} ids - Array of row IDs to update.
+ */
+export const markAsSynced = (ids) => {
+  if (!ids || ids.length === 0) return;
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const statement = db.prepareSync(`UPDATE telemetry SET synced = 1 WHERE id IN (${placeholders})`);
+    
+    statement.executeSync(ids);
+    console.log(`Successfully marked ${ids.length} records as synced.`);
+  } catch (error) {
+    console.error("Error updating sync status:", error);
+  }
+};
+
+/**
+ * The main orchestrator function to handle the AWS upload.
+ */
+export const syncTelemetryToAWS = async () => {
+  const unsyncedData = getUnsyncedTelemetry();
+  if (unsyncedData.length === 0) return;
+
+  try {
+    // Map the database rows into an array of pure JSON payloads for AWS
+    const payloads = unsyncedData.map(row => JSON.parse(row.payload));
+    const idsToUpdate = unsyncedData.map(row => row.id);
+
+    // TODO: Change url to our backend endpoint
+    const url="";
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch: payloads }),
+    });
+
+    if (response.ok) {
+      markAsSynced(idsToUpdate);
+    } else {
+      console.error("AWS sync failed with status:", response.status);
+    }
+  } catch (error) {
+    console.error("Network error during AWS sync:", error);
+  }
+};
