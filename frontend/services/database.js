@@ -104,3 +104,23 @@ export const syncTelemetryToAWS = async () => {
     console.error("Network error during AWS sync:", error);
   }
 };
+
+/**
+ * Deletes records that have been successfully synced AND are older than N days.
+ * @param {number} daysOld - no. of days
+ */
+export const pruneOldTelemetry = (daysOld = 7) => {
+  try {
+    // Calculate the cutoff timestamp in milliseconds
+    const cutoffTimestamp = Date.now() - (daysOld * 24 * 60 * 60 * 1000);
+    
+    const statement = db.prepareSync(
+      'DELETE FROM telemetry WHERE synced = 1 AND ts < $cutoff'
+    );
+    
+    const result = statement.executeSync({ $cutoff: cutoffTimestamp });
+    console.log(`Database pruned. Old synced records removed.`);
+  } catch (error) {
+    console.error("Error pruning old telemetry:", error);
+  }
+};
