@@ -1,19 +1,19 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Colors } from "../../constants/Colors";
 
 export default function TabsLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home" size={size} color={color} />
-          ),
-        }}
-      />
-
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: Colors.dark.background,
+          borderTopColor: Colors.dark.cardBorder,
+        },
+        tabBarActiveTintColor: Colors.dark.tint,
+      }}
+    >
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -24,15 +24,7 @@ export default function TabsLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="bluetooth"
-        options={{
-          title: "Bluetooth",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bluetooth" size={size} color={color} />
-          ),
-        }}
-      />
+
 
       <Tabs.Screen
         name="settings"

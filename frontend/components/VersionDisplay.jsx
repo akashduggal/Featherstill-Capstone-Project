@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, useColorScheme } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Constants from 'expo-constants';
 import { Colors } from '../constants/Colors'; 
 
 export default function VersionDisplay() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = Colors.dark;
 
   const appVersion = Constants.expoConfig?.version || 'Unknown';
 

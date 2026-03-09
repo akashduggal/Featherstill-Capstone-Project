@@ -1,9 +1,14 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
-export const Card = ({ children, style, variant = 'default' }) => {
+export const Card = ({ children, style, variant = 'default', colors }) => {
+  const cardStyle = {
+    backgroundColor: colors ? colors.surface : '#fff',
+    borderColor: colors ? colors.cardBorder : '#eee',
+  };
+
   return (
-    <View style={[styles.card, variant === 'elevated' && styles.elevated, style]}>
+    <View style={[styles.card, cardStyle, variant === 'elevated' && styles.elevated, style]}>
       {children}
     </View>
   );
@@ -11,11 +16,10 @@ export const Card = ({ children, style, variant = 'default' }) => {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
+    padding: 20, // Increased padding
     borderWidth: 1,
-    borderColor: '#eee',
+    marginBottom: 16, // Added margin for spacing
   },
   elevated: {
     borderWidth: 0,

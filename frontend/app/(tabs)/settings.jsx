@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuth, useSettings } from "../../context";
+import { useAuth, useSettings, BLEContext } from "../../context";
 import { Colors } from "../../constants/Colors";
 import VersionDisplay from "../../components/VersionDisplay";
 import {
@@ -19,38 +19,18 @@ import {
   ActionButton,
 } from "../../components";
 
-// ---------------------------------------------------------------------------
-// Static settings data — will be replaced with live data from ESP32 later
-// ---------------------------------------------------------------------------
-const SETTINGS_DATA = {
-  modules: [
-    { id: "mod-s123456789", type: "HVAC" },
-    { id: "mod-s987654321", type: "Industrial" },
-  ],
-  temperatureUnits: ["Celsius (°C)", "Fahrenheit (°F)"],
-  currentBmsVersion: "1.2.1",
-  newBmsVersion: "1.2.3",
-  refreshInterval: 2.0,
-};
 
-// ---------------------------------------------------------------------------
-// Main Component
-// ---------------------------------------------------------------------------
 export default function Settings() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === "dark" ? "dark" : "light";
+  const theme = "dark";
   const colors = Colors[theme];
   const router = useRouter();
   const { user, logout, isGuest } = useAuth();
-  const s = SETTINGS_DATA;
+  const { previouslyConnectedDevices, connectedDevice, disconnectFromDevice } = useContext(BLEContext);
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState(0);
 
-  // ── Interactive state ────────────────────────────────────────
-  const [selectedModuleIndex, setSelectedModuleIndex] = useState(0);
-  const [selectedTempUnit, setSelectedTempUnit] = useState(0);
-  const { autoRefresh, setAutoRefresh } = useSettings();
+  const { autoRefresh, setAutoRefresh, temperatureUnit, setTemperatureUnit } = useSettings();
 
-  const selectedModule = s.modules[selectedModuleIndex];
-  const hasUpdate = s.currentBmsVersion !== s.newBmsVersion;
+  
 
   const handleLogout = async () => {
     try {
@@ -96,19 +76,17 @@ export default function Settings() {
 
         <SettingsDropdown
           label="Module ID"
-          options={s.modules.map((m) => m.id)}
-          selectedIndex={selectedModuleIndex}
-          onSelect={setSelectedModuleIndex}
-          subText={`Module Type: ${selectedModule.type}`}
+          options={previouslyConnectedDevices.map((d) => d.name)}
+          selectedIndex={selectedDeviceIndex}
+          onSelect={setSelectedDeviceIndex}
           colors={colors}
-          labelRight={<NotificationBadge count={1} />}
         />
 
         <SettingsDropdown
           label="Temperature Unit"
-          options={s.temperatureUnits}
-          selectedIndex={selectedTempUnit}
-          onSelect={setSelectedTempUnit}
+          options={["Celsius", "Fahrenheit"]}
+          selectedIndex={temperatureUnit === 'C' ? 0 : 1}
+          onSelect={(index) => setTemperatureUnit(index === 0 ? 'C' : 'F')}
           colors={colors}
         />
       </View>
@@ -124,33 +102,7 @@ export default function Settings() {
       >
         <Text style={[styles.cardTitle, { color: colors.icon }]}>SYSTEM</Text>
 
-        {/* BMS Version */}
-        <View style={styles.bmsSection}>
-          <View style={styles.bmsRow}>
-            <Ionicons name="hardware-chip-outline" size={18} color={colors.icon} />
-            <Text style={[styles.versionText, { color: colors.text }]}>
-              Current BMS version: {s.currentBmsVersion}
-            </Text>
-          </View>
 
-          {hasUpdate && (
-            <>
-              <View style={styles.bmsRow}>
-                <Ionicons name="arrow-up-circle-outline" size={18} color={colors.success} />
-                <Text style={[styles.versionText, { color: colors.success }]}>
-                  New BMS version: {s.newBmsVersion}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.updateBtn, { backgroundColor: colors.success }]}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="download-outline" size={16} color="#fff" />
-                <Text style={styles.updateBtnText}>Update</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
 
         {/* Divider */}
         <View style={[styles.divider, { backgroundColor: colors.cardBorder }]} />
@@ -160,7 +112,6 @@ export default function Settings() {
           checked={autoRefresh}
           onToggle={() => setAutoRefresh(!autoRefresh)}
           label="Auto-refresh"
-          subText={autoRefresh ? `Refreshing every ${s.refreshInterval.toFixed(1)} s` : null}
           colors={colors}
         />
       </View>
@@ -169,6 +120,21 @@ export default function Settings() {
           ACTION BUTTONS
           ═══════════════════════════════════════════════════════════ */}
       <View style={styles.actions}>
+        <ActionButton
+          title="Bluetooth Settings"
+          icon="bluetooth"
+          onPress={() => router.push("/bluetooth")}
+          colors={colors}
+        />
+        {connectedDevice && (
+          <ActionButton
+            title="Disconnect Module"
+            icon="close-circle-outline"
+            variant="danger"
+            onPress={disconnectFromDevice}
+            colors={colors}
+          />
+        )}
         <ActionButton
           title="Battery Data"
           icon="battery-charging-outline"
