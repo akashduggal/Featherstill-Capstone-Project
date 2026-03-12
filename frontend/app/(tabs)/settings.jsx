@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   useColorScheme,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth, useSettings } from "../../context";
@@ -61,8 +62,9 @@ export default function Settings() {
   };
 
   return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
     <ScrollView
-      style={[styles.scrollView, { backgroundColor: colors.background }]}
+      style={styles.scrollView}
       contentContainerStyle={styles.container}
     >
       {/* ── Logo ───────────────────────────────────────────────── */}
@@ -189,6 +191,7 @@ export default function Settings() {
         <VersionDisplay />
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -199,9 +202,12 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   container: {
     padding: 20,
-    paddingTop: 50,
+    paddingTop: 10,
     paddingBottom: 40,
     alignItems: "center",
   },

@@ -1,5 +1,6 @@
 import React, { useContext, useEffect } from 'react';
 import { View, Text, FlatList, Button, PermissionsAndroid, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BLEContext } from '../../context/BLEContext';
 
 async function requestPermissions() {
@@ -36,6 +37,7 @@ export default function BluetoothScreen() {
   );
 
   return (
+    <SafeAreaView style={{ flex: 1 }}>
     <View style={{ flex: 1, padding: 20 }}>
       {connectedDevice ? (
         <View>
@@ -71,5 +73,6 @@ export default function BluetoothScreen() {
         </View>
       )}
     </View>
+    </SafeAreaView>
   );
 }
