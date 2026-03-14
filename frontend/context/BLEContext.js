@@ -3,6 +3,7 @@ import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 import { insertTelemetry } from "../services/database"
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import CryptoJS from 'crypto-js';
 
 export const BLEContext = createContext();
 
@@ -59,6 +60,7 @@ export const BLEProvider = ({ children }) => {
   const [isScanning, setIsScanning] = useState(false);
   const [previouslyConnectedDevices, setPreviouslyConnectedDevices] = useState([]);
   const [isOtaSupported, setIsOtaSupported] = useState(false);
+  const [otaStatus, setOtaStatus] = useState('idle');
   const dataBuffer = useRef(Buffer.alloc(0));
   const otaCharacteristics = useRef({});
 
@@ -209,9 +211,53 @@ export const BLEProvider = ({ children }) => {
       setTelemetryData(null);
       dataBuffer.current = Buffer.alloc(0);
       setIsOtaSupported(false);
+      setOtaStatus('idle');
       otaCharacteristics.current = {};
     }
   };
+
+  const startOta = async (firmware) => {
+    if (!isOtaSupported || !otaCharacteristics.current.control || !otaCharacteristics.current.status) {
+      console.log('OTA not supported or characteristics not found.');
+      return;
+    }
+
+    setOtaStatus('starting');
+
+    const firmwareSize = firmware.length;
+    const firmwareMd5 = CryptoJS.MD5(CryptoJS.lib.WordArray.create(firmware)).toString();
+
+    const payload = Buffer.alloc(1 + 4 + 16);
+    payload.writeUInt8(0x01, 0); // Start OTA command
+    payload.writeUInt32LE(firmwareSize, 1);
+    const md5Buffer = Buffer.from(firmwareMd5, 'hex');
+    md5Buffer.copy(payload, 5);
+
+    otaCharacteristics.current.status.monitor((error, characteristic) => {
+      if (error) {
+        console.log('OTA status monitor error:', error);
+        setOtaStatus('error');
+        return;
+      }
+
+      if (characteristic?.value) {
+        const status = Buffer.from(characteristic.value, 'base64').readUInt8(0);
+        if (status === 0x01) { // Ready for OTA
+          setOtaStatus('in_progress');
+          // In the next step, we will start sending chunks here
+        }
+      }
+    });
+
+    try {
+      await otaCharacteristics.current.control.writeWithResponse(payload.toString('base64'));
+      console.log('Start OTA command sent.');
+    } catch (error) {
+      console.log('Failed to send Start OTA command:', error);
+      setOtaStatus('error');
+    }
+  };
+
 
   return (
     <BLEContext.Provider
@@ -222,9 +268,11 @@ export const BLEProvider = ({ children }) => {
         isScanning,
         previouslyConnectedDevices,
         isOtaSupported,
+        otaStatus,
         scanForDevices,
         connectToDevice,
         disconnectFromDevice,
+        startOta,
       }}
     >
       {children}
