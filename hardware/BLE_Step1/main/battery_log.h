@@ -25,7 +25,7 @@ typedef struct __attribute__((packed)) {
     uint8_t  _pad[3];                  // padding to align size to multiple of 4 (optional)
 } battery_log_t;
 
-#define LOG_RECORD_VERSION 2
+#define LOG_RECORD_VERSION 3
 #define LOG_RECORD_SIZE_BYTES 56  // set to exact sizeof(battery_log_t)
 
 _Static_assert(sizeof(battery_log_t) == LOG_RECORD_SIZE_BYTES,
