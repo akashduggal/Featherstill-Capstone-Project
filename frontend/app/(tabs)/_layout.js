@@ -1,9 +1,26 @@
-import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from 'react-native';
+import { Colors } from '../../constants/Colors';
 
 export default function TabsLayout() {
+  const colorScheme = useColorScheme();
+
+  const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
+
   return (
-    <Tabs screenOptions={{ headerShown: false }}>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: theme.tabIconSelected,
+        tabBarInactiveTintColor: theme.tabIconDefault,
+        tabBarStyle: {
+          backgroundColor: theme.background,
+          borderTopColor: theme.cardBorder,
+        },
+      }}
+      testID="tabs-container"
+    >
       <Tabs.Screen
         name="bluetooth"
         options={{
@@ -12,26 +29,29 @@ export default function TabsLayout() {
             <Ionicons name="bluetooth" size={size} color={color} />
           ),
         }}
+        testID="tab-screen-bluetooth"
       />
 
       <Tabs.Screen
-        name="dashboard"
+        name='dashboard'
         options={{
-          title: "Dashboard",
+          title: 'Dashboard',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="speedometer" size={size} color={color} />
+            <Ionicons name='speedometer' size={size} color={color} />
           ),
         }}
+        testID="tab-screen-dashboard"
       />
 
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: 'Settings',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+            <Ionicons name='settings' size={size} color={color} />
           ),
         }}
+        testID="tab-screen-settings"
       />
     </Tabs>
   );
