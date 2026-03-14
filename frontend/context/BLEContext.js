@@ -6,6 +6,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const BLEContext = createContext();
 
+const OTA_SERVICE_UUID = 'f0000000-0000-4000-8000-000000000001';
+const OTA_CONTROL_UUID = 'f0000000-0000-4000-8000-000000000002';
+const OTA_DATA_UUID = 'f0000000-0000-4000-8000-000000000003';
+const OTA_STATUS_UUID = 'f0000000-0000-4000-8000-000000000004';
+
 const parseTelemetryData = (buffer) => {
   if (buffer.length < 49) {
     return null;
@@ -53,7 +58,9 @@ export const BLEProvider = ({ children }) => {
   const [telemetryData, setTelemetryData] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [previouslyConnectedDevices, setPreviouslyConnectedDevices] = useState([]);
+  const [isOtaSupported, setIsOtaSupported] = useState(false);
   const dataBuffer = useRef(Buffer.alloc(0));
+  const otaCharacteristics = useRef({});
 
   useEffect(() => {
     const subscription = manager.onStateChange((state) => {
@@ -129,11 +136,26 @@ export const BLEProvider = ({ children }) => {
 
       await connected.discoverAllServicesAndCharacteristics();
       const services = await connected.services();
+      let otaServiceFound = false;
 
       for (const service of services) {
         const characteristics = await service.characteristics();
+        if (service.uuid === OTA_SERVICE_UUID) {
+          otaServiceFound = true;
+          for (const characteristic of characteristics) {
+            if (characteristic.uuid === OTA_CONTROL_UUID) {
+              otaCharacteristics.current.control = characteristic;
+            } else if (characteristic.uuid === OTA_DATA_UUID) {
+              otaCharacteristics.current.data = characteristic;
+            } else if (characteristic.uuid === OTA_STATUS_UUID) {
+              otaCharacteristics.current.status = characteristic;
+            }
+          }
+        }
+
         for (const characteristic of characteristics) {
-          if (characteristic.isNotifiable) {
+          if (characteristic.isNotifiable && service.uuid !== OTA_SERVICE_UUID) {
+            console.log(`Subscribing to telemetry characteristic ${characteristic.uuid}`);
             characteristic.monitor((error, char) => {
               if (error) {
                 return;
@@ -164,6 +186,14 @@ export const BLEProvider = ({ children }) => {
           }
         }
       }
+
+      if (otaServiceFound && otaCharacteristics.current.control && otaCharacteristics.current.data && otaCharacteristics.current.status) {
+        setIsOtaSupported(true);
+        console.log('OTA service is supported on this device.');
+      } else {
+        setIsOtaSupported(false);
+        console.log('OTA service not supported on this device.');
+      }
     } catch (error) {
       console.log(error);
       if (onFail) {
@@ -178,6 +208,8 @@ export const BLEProvider = ({ children }) => {
       setConnectedDevice(null);
       setTelemetryData(null);
       dataBuffer.current = Buffer.alloc(0);
+      setIsOtaSupported(false);
+      otaCharacteristics.current = {};
     }
   };
 
@@ -189,6 +221,7 @@ export const BLEProvider = ({ children }) => {
         telemetryData,
         isScanning,
         previouslyConnectedDevices,
+        isOtaSupported,
         scanForDevices,
         connectToDevice,
         disconnectFromDevice,
