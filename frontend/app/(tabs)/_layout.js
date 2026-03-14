@@ -19,6 +19,7 @@ export default function TabsLayout() {
           borderTopColor: theme.cardBorder,
         },
       }}
+      testID="tabs-container"
     >
       <Tabs.Screen
         name="bluetooth"
@@ -28,6 +29,7 @@ export default function TabsLayout() {
             <Ionicons name="bluetooth" size={size} color={color} />
           ),
         }}
+        testID="tab-screen-bluetooth"
       />
 
       <Tabs.Screen
@@ -38,6 +40,7 @@ export default function TabsLayout() {
             <Ionicons name='speedometer' size={size} color={color} />
           ),
         }}
+        testID="tab-screen-dashboard"
       />
 
       <Tabs.Screen
@@ -48,6 +51,7 @@ export default function TabsLayout() {
             <Ionicons name='settings' size={size} color={color} />
           ),
         }}
+        testID="tab-screen-settings"
       />
     </Tabs>
   );
