@@ -61,6 +61,7 @@ export const BLEProvider = ({ children }) => {
   const [previouslyConnectedDevices, setPreviouslyConnectedDevices] = useState([]);
   const [isOtaSupported, setIsOtaSupported] = useState(false);
   const [otaStatus, setOtaStatus] = useState('idle');
+  const [otaProgress, setOtaProgress] = useState(0);
   const dataBuffer = useRef(Buffer.alloc(0));
   const otaCharacteristics = useRef({});
 
@@ -212,17 +213,19 @@ export const BLEProvider = ({ children }) => {
       dataBuffer.current = Buffer.alloc(0);
       setIsOtaSupported(false);
       setOtaStatus('idle');
+      setOtaProgress(0);
       otaCharacteristics.current = {};
     }
   };
 
   const startOta = async (firmware) => {
-    if (!isOtaSupported || !otaCharacteristics.current.control || !otaCharacteristics.current.status) {
+    if (!isOtaSupported || !otaCharacteristics.current.control || !otaCharacteristics.current.status || !otaCharacteristics.current.data) {
       console.log('OTA not supported or characteristics not found.');
       return;
     }
 
     setOtaStatus('starting');
+    setOtaProgress(0);
 
     const firmwareSize = firmware.length;
     const firmwareMd5 = CryptoJS.MD5(CryptoJS.lib.WordArray.create(firmware)).toString();
@@ -233,18 +236,63 @@ export const BLEProvider = ({ children }) => {
     const md5Buffer = Buffer.from(firmwareMd5, 'hex');
     md5Buffer.copy(payload, 5);
 
-    otaCharacteristics.current.status.monitor((error, characteristic) => {
+    const sendFirmwareInChunks = async () => {
+      const chunkSize = 244;
+      let offset = 0;
+
+      while (offset < firmwareSize) {
+        const chunk = firmware.slice(offset, offset + chunkSize);
+        try {
+          await otaCharacteristics.current.data.writeWithoutResponse(chunk.toString('base64'));
+          offset += chunk.length;
+          setOtaProgress(Math.round((offset / firmwareSize) * 100));
+        } catch (error) {
+          console.log('Failed to send firmware chunk:', error);
+          setOtaStatus('error');
+          return;
+        }
+      }
+
+      console.log('All firmware chunks sent.');
+      const endOtaPayload = Buffer.alloc(1);
+      endOtaPayload.writeUInt8(0x02, 0); // End OTA command
+      try {
+        await otaCharacteristics.current.control.writeWithResponse(endOtaPayload.toString('base64'));
+        console.log('End OTA command sent.');
+      } catch (error) {
+        console.log('Failed to send End OTA command:', error);
+        setOtaStatus('error');
+      }
+    };
+
+    const statusMonitor = otaCharacteristics.current.status.monitor((error, characteristic) => {
       if (error) {
         console.log('OTA status monitor error:', error);
         setOtaStatus('error');
+        statusMonitor.remove();
         return;
       }
 
       if (characteristic?.value) {
-        const status = Buffer.from(characteristic.value, 'base64').readUInt8(0);
-        if (status === 0x01) { // Ready for OTA
-          setOtaStatus('in_progress');
-          // In the next step, we will start sending chunks here
+        const response = Buffer.from(characteristic.value, 'base64');
+        const status = response.readUInt8(0);
+
+        switch (status) {
+          case 0x01: // Ready for OTA
+            console.log('Device is ready for OTA. Starting transfer...');
+            setOtaStatus('in_progress');
+            sendFirmwareInChunks();
+            break;
+          case 0x03: // OTA Complete
+            console.log('OTA completed successfully.');
+            setOtaStatus('success');
+            statusMonitor.remove();
+            break;
+          case 0x04: // OTA Error
+            console.log('OTA failed.');
+            setOtaStatus('error');
+            statusMonitor.remove();
+            break;
         }
       }
     });
@@ -255,6 +303,7 @@ export const BLEProvider = ({ children }) => {
     } catch (error) {
       console.log('Failed to send Start OTA command:', error);
       setOtaStatus('error');
+      statusMonitor.remove();
     }
   };
 
@@ -269,6 +318,7 @@ export const BLEProvider = ({ children }) => {
         previouslyConnectedDevices,
         isOtaSupported,
         otaStatus,
+        otaProgress,
         scanForDevices,
         connectToDevice,
         disconnectFromDevice,
