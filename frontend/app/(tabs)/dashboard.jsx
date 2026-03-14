@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from "../../constants/Colors";
 import {
   BatteryIcon,
@@ -121,10 +122,12 @@ export default function Dashboard() {
 
   if (!displayData) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Waiting for Telemetry Data...</Text>
-        <Text style={[styles.subtitle, { color: colors.text }]}>Connect to a device from the Bluetooth screen.</Text>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+        <View style={[styles.container, { justifyContent: 'center' }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Waiting for Telemetry Data...</Text>
+          <Text style={[styles.subtitle, { color: colors.text }]}>Connect to a device from the Bluetooth screen.</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -147,8 +150,9 @@ export default function Dashboard() {
   const voltageDelta = maxV - minV;
 
   return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
     <ScrollView
-      style={[styles.scrollView, { backgroundColor: colors.background }]}
+      style={styles.scrollView}
       contentContainerStyle={styles.container}
       refreshControl={
         !autoRefresh ? (
@@ -216,6 +220,7 @@ export default function Dashboard() {
         ))}
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -223,12 +228,15 @@ export default function Dashboard() {
 // Styles (theme-independent layout only — center-aligned for mobile)
 // ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   container: {
     padding: 20,
-    paddingTop: 50,
+    paddingTop: 10,
     paddingBottom: 40,
     alignItems: "center",
   },

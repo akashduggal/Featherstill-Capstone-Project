@@ -21,11 +21,11 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name='home'
+        name="bluetooth"
         options={{
-          title: 'Home',
+          title: "Bluetooth",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name='home' size={size} color={color} />
+            <Ionicons name="bluetooth" size={size} color={color} />
           ),
         }}
       />
@@ -41,17 +41,7 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name='bluetooth'
-        options={{
-          title: 'Bluetooth',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name='bluetooth' size={size} color={color} />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
-        name='settings'
+        name="settings"
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, size }) => (
