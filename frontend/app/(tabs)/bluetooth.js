@@ -23,7 +23,7 @@ async function requestPermissions() {
 }
 
 export default function BluetoothScreen() {
-  const { devices, connectedDevice, telemetryData, scanForDevices, connectToDevice, disconnectFromDevice } = useContext(BLEContext);
+  const { devices, connectedDevice, scanForDevices, connectToDevice, disconnectFromDevice } = useContext(BLEContext);
 
   useEffect(() => {
     requestPermissions();
@@ -38,41 +38,24 @@ export default function BluetoothScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-    <View style={{ flex: 1, padding: 20 }}>
-      {connectedDevice ? (
-        <View>
-          <Text>Connected to: {connectedDevice.name}</Text>
-          <Button title="Disconnect" onPress={disconnectFromDevice} />
-          {telemetryData && (
-            <View style={{ marginTop: 20 }}>
-              <Text>Telemetry Data:</Text>
-              <Text>Timestamp: {telemetryData.timestamp_s}s</Text>
-              <Text>Pack Voltage: {telemetryData.pack_total_mv}mV</Text>
-              <Text>Current: {telemetryData.current_ma}mA</Text>
-              <Text>SoC: {telemetryData.soc}%</Text>
-              <Text>Temperature (TS1): {telemetryData.temp_ts1_c_x100 / 100}°C</Text>
-              <Text>Temperature (Internal): {telemetryData.temp_int_c_x100 / 100}°C</Text>
-              <Text>Cell Voltages (mV):</Text>
-              <FlatList
-                data={telemetryData.cell_mv}
-                renderItem={({ item, index }) => <Text>  Cell {index + 1}: {item}mV</Text>}
-                keyExtractor={(item, index) => index.toString()}
-              />
-            </View>
-          )}
-        </View>
-      ) : (
-        <View>
-          <Text>Available Devices:</Text>
-          <FlatList
-            data={devices}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-          />
-          <Button title="Scan" onPress={scanForDevices} />
-        </View>
-      )}
-    </View>
+      <View style={{ flex: 1, padding: 20 }}>
+        {connectedDevice ? (
+          <View>
+            <Text>Connected to: {connectedDevice.name}</Text>
+            <Button title="Disconnect" onPress={disconnectFromDevice} />
+          </View>
+        ) : (
+          <View>
+            <Text>Available Devices:</Text>
+            <FlatList
+              data={devices}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.id}
+            />
+            <Button title="Scan" onPress={scanForDevices} />
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
