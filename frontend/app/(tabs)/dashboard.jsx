@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [isPosting, setIsPosting] = useState(false);
   const [postStatus, setPostStatus] = useState("idle");
   const [lastPostTime, setLastPostTime] = useState(null);
+  const [lastResponse, setLastResponse] = useState(null);
 
   // When autoRefresh is OFF, display the snapshot; when ON, display live data
   const displayData = autoRefresh ? telemetryData : (snapshot || telemetryData);
@@ -94,6 +95,8 @@ export default function Dashboard() {
       const email = "test@example.com"; // hardcoded for backend validation
 
       const result = await postBatteryReading(payload, email, batteryId);
+      // store raw result for quick debugging in UI (truncated display below)
+      try { setLastResponse(JSON.stringify(result)); } catch (e) { setLastResponse(String(result)); }
 
       if (result.success) {
         setLastPostTime(new Date().toLocaleTimeString());
@@ -171,6 +174,17 @@ export default function Dashboard() {
 
       <Button title={isPosting ? 'Sending...' : 'Send Test Reading'} onPress={handlePostBatteryData} disabled={isPosting} />
 
+      {/* Post status / diagnostics */}
+      <View style={{ marginTop: 8, marginBottom: 12, alignItems: "center" }}>
+        <Text style={[styles.small, { color: colors.icon }]}>Post status: {postStatus}</Text>
+        {lastPostTime && <Text style={[styles.small, { color: colors.text }]}>Last posted: {lastPostTime}</Text>}
+        {lastResponse ? (
+          <Text numberOfLines={3} ellipsizeMode="tail" style={[styles.small, { color: colors.icon }]}>
+            Response: {lastResponse.length > 200 ? `${lastResponse.slice(0,200)}…` : lastResponse}
+          </Text>
+        ) : null}
+      </View>
+
       <Text style={[styles.subtitle, { color: colors.text }]}>
         Battery Data – {d.nominalVoltage}V | {d.capacityWh.toLocaleString()}Wh
       </Text>
@@ -239,6 +253,11 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 40,
     alignItems: "center",
+  },
+  small: {
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
 
   /* Title / Subtitle */

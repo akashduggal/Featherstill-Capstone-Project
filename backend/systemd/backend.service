@@ -1,0 +1,17 @@
+[Unit]
+Description=Featherstill Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/home/ec2-user/Featherstill-Capstone-Project/backend
+# Load environment file (create .env on the EC2 host, do NOT commit it)
+EnvironmentFile=/home/ec2-user/Featherstill-Capstone-Project/backend/.env
+# Replace with your actual start command
+ExecStart=/usr/bin/node /home/ec2-user/Featherstill-Capstone-Project/backend/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

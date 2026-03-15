@@ -1,0 +1,4 @@
+# Ignore local env and certificate files
+.env
+*.pem
+*.key
