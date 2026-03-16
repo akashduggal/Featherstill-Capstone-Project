@@ -4,6 +4,7 @@
 #include "esp_log.h"
 
 #include "ble_batt_mock.h"
+#include "ble_ota.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 
@@ -158,7 +159,7 @@ void ble_stack_start(void)
 
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.sync_cb = on_sync;
-
+    ble_ota_register_service();
     ble_batt_mock_register();
 
     nimble_port_freertos_init(host_task);
