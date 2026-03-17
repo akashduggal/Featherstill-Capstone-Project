@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useRef } from 'react';
 import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
+import { insertTelemetry } from "../services/database"
 
 export const BLEContext = createContext();
 
@@ -107,6 +108,12 @@ export const BLEProvider = ({ children }) => {
                   if (parsedData) {
                     console.log('Received parsed data:', parsedData);
                     setTelemetryData(parsedData);
+                    const dbPayload = {
+                      ...parsedData,
+                      ts: parsedData.timestamp_s * 1000 
+                    };
+                    
+                    insertTelemetry(dbPayload);
                   } else {
                     console.log('Received raw data (incomplete packet):', packet.toString('hex'));
                   }
