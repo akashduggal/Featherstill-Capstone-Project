@@ -30,7 +30,7 @@ export default function Dashboard() {
   const telemetryData = bleCtx.telemetryData || null;
   const connectedDevice = bleCtx.connectedDevice || null;
 
-  const { autoRefresh } = useSettings();
+  const { autoRefresh, temperatureUnit } = useSettings();
 
   const [refreshing, setRefreshing] = useState(false);
   const [snapshot, setSnapshot] = useState(null);
@@ -145,6 +145,9 @@ export default function Dashboard() {
   const maxV = Math.max(...d.cellVoltages);
   const voltageDelta = maxV - minV;
 
+  const displayTemp = temperatureUnit === 'F' ? (d.cellTemperature * 9 / 5) + 32 : d.cellTemperature;
+  const tempString = temperatureUnit === 'F' ? `${displayTemp.toFixed(1)} °F` : `${displayTemp.toFixed(1)} °C`;
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -190,8 +193,8 @@ export default function Dashboard() {
           <View style={styles.tempTile}>
             <Text style={[styles.statLabel, { color: colors.icon }]}>Cell Temperature</Text>
             <View style={styles.tempValueRow}>
-              <Text style={[styles.tempValue, { color: colors.text }]}>{d.cellTemperature.toFixed(1)} °C</Text>
-              <ThermometerIcon temperature={d.cellTemperature} colors={colors} />
+              <Text style={[styles.tempValue, { color: colors.text }]}>{tempString}</Text>
+              <ThermometerIcon temperature={displayTemp} isFahrenheit={temperatureUnit === 'F'} colors={colors} />
             </View>
           </View>
         </View>

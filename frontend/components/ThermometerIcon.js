@@ -25,8 +25,9 @@ function tempColor(temp) {
  */
 export const ThermometerIcon = ({
     temperature,
-    minTemp = 0,
-    maxTemp = 60,
+    minTemp = 0, // In C
+    maxTemp = 60, // In C
+    isFahrenheit = false,
     colors,
 }) => {
     const tubeW = 8;
@@ -34,10 +35,15 @@ export const ThermometerIcon = ({
     const bulbSize = 14;
     const borderW = 1.5;
 
-    const clamped = Math.max(minTemp, Math.min(maxTemp, temperature));
-    const fillPct = ((clamped - minTemp) / (maxTemp - minTemp)) * 100;
+    const baseMin = isFahrenheit ? (minTemp * 9 / 5) + 32 : minTemp;
+    const baseMax = isFahrenheit ? (maxTemp * 9 / 5) + 32 : maxTemp;
+    // Normalized temps in C purely for color calculation
+    const tempInC = isFahrenheit ? (temperature - 32) * 5 / 9 : temperature;
+
+    const clamped = Math.max(baseMin, Math.min(baseMax, temperature));
+    const fillPct = ((clamped - baseMin) / (baseMax - baseMin)) * 100;
     const fillH = ((tubeH - borderW * 2 - 2) * fillPct) / 100;
-    const color = tempColor(temperature);
+    const color = tempColor(tempInC);
 
     return (
         <View style={{ alignItems: 'center' }}>
