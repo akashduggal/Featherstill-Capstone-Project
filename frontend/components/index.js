@@ -11,3 +11,5 @@ export * from './SettingsDropdown';
 export * from './SettingsCheckbox';
 export * from './NotificationBadge';
 export * from './ActionButton';
+export * from './BluetoothConnectionUI';
+export * from './Modal';

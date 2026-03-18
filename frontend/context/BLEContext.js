@@ -1,12 +1,13 @@
 import React, { createContext, useState, useEffect, useRef } from 'react';
 import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const BLEContext = createContext();
 
 const parseTelemetryData = (buffer) => {
   if (buffer.length < 49) {
-    return null; // Incomplete packet
+    return null;
   }
 
   const data = {};
@@ -49,21 +50,50 @@ export const BLEProvider = ({ children }) => {
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [telemetryData, setTelemetryData] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [previouslyConnectedDevices, setPreviouslyConnectedDevices] = useState([]);
   const dataBuffer = useRef(Buffer.alloc(0));
 
   useEffect(() => {
     const subscription = manager.onStateChange((state) => {
       if (state === 'PoweredOn') {
-        scanForDevices();
+        loadPreviouslyConnectedDevices();
       }
     }, true);
     return () => subscription.remove();
   }, [manager]);
 
+  const loadPreviouslyConnectedDevices = async () => {
+    try {
+      const storedDevices = await AsyncStorage.getItem('previouslyConnectedDevices');
+      if (storedDevices) {
+        setPreviouslyConnectedDevices(JSON.parse(storedDevices));
+      }
+    } catch (error) {
+      console.log('Failed to load previously connected devices.', error);
+    }
+  };
+
+  const addPreviouslyConnectedDevice = async (device) => {
+    try {
+      const currentDevices = previouslyConnectedDevices;
+      if (!currentDevices.some(d => d.id === device.id)) {
+        const updatedDevices = [...currentDevices, device];
+        setPreviouslyConnectedDevices(updatedDevices);
+        await AsyncStorage.setItem('previouslyConnectedDevices', JSON.stringify(updatedDevices));
+      }
+    } catch (error) {
+      console.log('Failed to save previously connected device.', error);
+    }
+  };
+
   const scanForDevices = () => {
+    setIsScanning(true);
+    setDevices([]);
     manager.startDeviceScan(null, null, (error, device) => {
       if (error) {
         console.log(error);
+        setIsScanning(false);
         return;
       }
       if (device && device.name) {
@@ -75,13 +105,26 @@ export const BLEProvider = ({ children }) => {
         });
       }
     });
+    setTimeout(() => {
+      manager.stopDeviceScan();
+      setIsScanning(false);
+    }, 5000);
   };
 
-  const connectToDevice = async (device) => {
+  const connectToDevice = async (device, onConnect, onFail) => {
     try {
       await manager.stopDeviceScan();
-      const connected = await device.connect();
+      setIsScanning(false);
+
+      const connected = device.connect
+        ? await device.connect()
+        : await manager.connectToDevice(device.id);
+
       setConnectedDevice(connected);
+      addPreviouslyConnectedDevice({ id: connected.id, name: connected.name });
+      if (onConnect) {
+        onConnect();
+      }
 
       await connected.discoverAllServicesAndCharacteristics();
       const services = await connected.services();
@@ -90,10 +133,8 @@ export const BLEProvider = ({ children }) => {
         const characteristics = await service.characteristics();
         for (const characteristic of characteristics) {
           if (characteristic.isNotifiable) {
-            console.log(`Subscribing to characteristic ${characteristic.uuid}`);
             characteristic.monitor((error, char) => {
               if (error) {
-                console.log(`Error monitoring characteristic ${characteristic.uuid}:`, error);
                 return;
               }
               if (char && char.value) {
@@ -105,10 +146,7 @@ export const BLEProvider = ({ children }) => {
                   const parsedData = parseTelemetryData(packet);
 
                   if (parsedData) {
-                    console.log('Received parsed data:', parsedData);
                     setTelemetryData(parsedData);
-                  } else {
-                    console.log('Received raw data (incomplete packet):', packet.toString('hex'));
                   }
                   dataBuffer.current = dataBuffer.current.slice(49);
                 }
@@ -119,6 +157,9 @@ export const BLEProvider = ({ children }) => {
       }
     } catch (error) {
       console.log(error);
+      if (onFail) {
+        onFail(error);
+      }
     }
   };
 
@@ -137,6 +178,8 @@ export const BLEProvider = ({ children }) => {
         devices,
         connectedDevice,
         telemetryData,
+        isScanning,
+        previouslyConnectedDevices,
         scanForDevices,
         connectToDevice,
         disconnectFromDevice,
