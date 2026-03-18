@@ -7,29 +7,29 @@ import { initDB, pruneSyncedTelemetry } from '../services/database';
 import { useTelemetrySync } from '../hooks/useTelemetrySync';
 
 const RootNavigation = () => {
-  const { user, loading } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
+  // const { user, loading } = useAuth();
+  // const segments = useSegments();
+  // const router = useRouter();
 
-  useEffect(() => {
-    if (loading) return;
+  // useEffect(() => {
+  //   if (loading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+  //   const inAuthGroup = segments[0] === '(auth)';
 
-    if (!user && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      router.replace('/(tabs)/dashboard');
-    }
-  }, [user, loading, segments]);
+  //   if (!user && !inAuthGroup) {
+  //     router.replace('/(auth)/login');
+  //   } else if (user && inAuthGroup) {
+  //     router.replace('/(tabs)/dashboard');
+  //   }
+  // }, [user, loading, segments]);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
-      </View>
-    );
-  }
+  // if (loading) {
+  //   return (
+  //     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+  //       <ActivityIndicator size="large" color="#0000ff" />
+  //     </View>
+  //   );
+  // }
 
   return <Stack screenOptions={{ headerShown: false }} />;
 };
