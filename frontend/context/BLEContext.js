@@ -3,14 +3,14 @@ import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 import { insertTelemetry } from "../services/database"
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import CryptoJS from 'crypto-js';
+
 
 export const BLEContext = createContext();
 
-const OTA_SERVICE_UUID = 'f0000000-0000-4000-8000-000000000001';
-const OTA_CONTROL_UUID = 'f0000000-0000-4000-8000-000000000002';
-const OTA_DATA_UUID = 'f0000000-0000-4000-8000-000000000003';
-const OTA_STATUS_UUID = 'f0000000-0000-4000-8000-000000000004';
+const OTA_SERVICE_UUID = 'f0debc9a-7856-3412-7856-341278563412';
+const OTA_CONTROL_UUID = 'f0debc9a-7856-3412-7856-341278563413';
+const OTA_DATA_UUID = 'f0debc9a-7856-3412-7856-341278563414';
+const OTA_STATUS_UUID = 'f0debc9a-7856-3412-7856-341278563415';
 
 const parseTelemetryData = (buffer) => {
   if (buffer.length < 49) {
@@ -228,13 +228,10 @@ export const BLEProvider = ({ children }) => {
     setOtaProgress(0);
 
     const firmwareSize = firmware.length;
-    const firmwareMd5 = CryptoJS.MD5(CryptoJS.lib.WordArray.create(firmware)).toString();
 
-    const payload = Buffer.alloc(1 + 4 + 16);
+    const payload = Buffer.alloc(5);
     payload.writeUInt8(0x01, 0); // Start OTA command
     payload.writeUInt32LE(firmwareSize, 1);
-    const md5Buffer = Buffer.from(firmwareMd5, 'hex');
-    md5Buffer.copy(payload, 5);
 
     const sendFirmwareInChunks = async () => {
       const chunkSize = 244;
@@ -243,7 +240,7 @@ export const BLEProvider = ({ children }) => {
       while (offset < firmwareSize) {
         const chunk = firmware.slice(offset, offset + chunkSize);
         try {
-          await otaCharacteristics.current.data.writeWithoutResponse(chunk.toString('base64'));
+          await otaCharacteristics.current.data.writeWithoutResponse(chunk);
           offset += chunk.length;
           setOtaProgress(Math.round((offset / firmwareSize) * 100));
         } catch (error) {
@@ -257,7 +254,7 @@ export const BLEProvider = ({ children }) => {
       const endOtaPayload = Buffer.alloc(1);
       endOtaPayload.writeUInt8(0x02, 0); // End OTA command
       try {
-        await otaCharacteristics.current.control.writeWithResponse(endOtaPayload.toString('base64'));
+        await otaCharacteristics.current.control.writeWithoutResponse(endOtaPayload.toString('base64'));
         console.log('End OTA command sent.');
       } catch (error) {
         console.log('Failed to send End OTA command:', error);
@@ -274,31 +271,32 @@ export const BLEProvider = ({ children }) => {
       }
 
       if (characteristic?.value) {
-        const response = Buffer.from(characteristic.value, 'base64');
-        const status = response.readUInt8(0);
+        const response = Buffer.from(characteristic.value, 'base64').toString('utf8');
 
-        switch (status) {
-          case 0x01: // Ready for OTA
+        switch (response) {
+          case 'READY':
             console.log('Device is ready for OTA. Starting transfer...');
             setOtaStatus('in_progress');
             sendFirmwareInChunks();
             break;
-          case 0x03: // OTA Complete
+          case 'SUCCESS':
             console.log('OTA completed successfully.');
             setOtaStatus('success');
             statusMonitor.remove();
             break;
-          case 0x04: // OTA Error
-            console.log('OTA failed.');
-            setOtaStatus('error');
-            statusMonitor.remove();
+          default:
+            if (response.startsWith('ERROR')) {
+              console.log(`OTA failed with error: ${response}`);
+              setOtaStatus('error');
+              statusMonitor.remove();
+            }
             break;
         }
       }
     });
 
     try {
-      await otaCharacteristics.current.control.writeWithResponse(payload.toString('base64'));
+      await otaCharacteristics.current.control.writeWithoutResponse(payload.toString('base64'));
       console.log('Start OTA command sent.');
     } catch (error) {
       console.log('Failed to send Start OTA command:', error);
