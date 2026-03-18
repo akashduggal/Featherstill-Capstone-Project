@@ -1,8 +1,8 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { View, FlatList, PermissionsAndroid, Platform, StyleSheet } from 'react-native';
+import { View, FlatList, PermissionsAndroid, Platform, StyleSheet, ActivityIndicator } from 'react-native';
 import { BLEContext } from '../context/BLEContext';
-import { Typography, Button, Card, Modal } from './';
+import { Typography, Button, Card, SettingsDropdown, Modal } from './';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
 
@@ -28,9 +28,12 @@ export const BluetoothConnectionUI = () => {
     devices,
     scanForDevices,
     connectToDevice,
+    isScanning,
     previouslyConnectedDevices,
   } = useContext(BLEContext);
   const router = useRouter();
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState(0);
+  const [hasScanned, setHasScanned] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
@@ -91,19 +94,68 @@ export const BluetoothConnectionUI = () => {
     );
   };
 
+  const deviceOptions = previouslyConnectedDevices.map(d => d.name);
+
   const handleScan = () => {
+    setHasScanned(true);
     scanForDevices();
   };
 
+  const filteredDevices = devices.filter(device => device.name && device.name.includes('ESP32_'));
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Button title='Scan for Modules' onPress={handleScan} style={styles.scanButton} />
+      {previouslyConnectedDevices.length > 0 && (
+        <SettingsDropdown
+          label="Connected Modules List"
+          colors={colors}
+          options={deviceOptions}
+          selectedIndex={selectedDeviceIndex}
+          onSelect={setSelectedDeviceIndex}
+        />
+      )}
 
-      <FlatList
-        data={devices}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-      />
+      {previouslyConnectedDevices.length > 0 && (
+        <Button
+          title="Connect"
+          loading={isConnecting}
+          onPress={() => {
+            const selectedDevice = previouslyConnectedDevices[selectedDeviceIndex];
+            handleConnect(selectedDevice);
+          }}
+          style={styles.connectButton}
+        />
+      )}
+
+      <View style={styles.dividerContainer}>
+        <View style={[styles.dividerLine, { backgroundColor: colors.cardBorder }]} />
+        <Typography style={[styles.dividerText, { color: colors.icon }]}>OR</Typography>
+        <View style={[styles.dividerLine, { backgroundColor: colors.cardBorder }]} />
+      </View>
+
+      <Button title={isScanning ? 'Scanning...' : 'Scan for New Modules'} onPress={handleScan} disabled={isScanning} style={styles.scanButton} />
+
+      {isScanning ? (
+        <ActivityIndicator size="large" color={colors.tint} style={styles.activityIndicator} />
+      ) : (
+        <>
+          {hasScanned && filteredDevices.length > 0 && (
+            <Typography style={[styles.listLabel, { color: colors.text }]}>
+              Scanned Devices ({filteredDevices.length})
+            </Typography>
+          )}
+          <FlatList
+            data={filteredDevices}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id}
+            ListEmptyComponent={
+              hasScanned ? (
+                <Typography style={[styles.emptyText, { color: colors.text }]}>No new modules found.</Typography>
+              ) : null
+            }
+          />
+        </>
+      )}
 
       <Modal
         visible={modalVisible}
@@ -120,6 +172,12 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  listLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    marginTop: 20,
+  },
   cardContentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -135,5 +193,26 @@ const styles = StyleSheet.create({
   },
   scanButton: {
     marginBottom: 20,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  activityIndicator: {
+    marginVertical: 20,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: 50,
   },
 });
