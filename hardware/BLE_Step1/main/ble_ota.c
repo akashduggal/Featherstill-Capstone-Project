@@ -3,9 +3,13 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_log.h"
+#include "esp_err.h"
 #include "host/ble_hs.h"
 #include "host/ble_uuid.h"
 #include "os/os_mbuf.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_system.h"
 
 static const char *TAG = "BLE_OTA";
 #define OTA_CMD_START   0x01
@@ -101,7 +105,13 @@ static void ble_ota_set_state(ble_ota_state_t new_state)
         s_ota.state = new_state;
     }
 }
-
+static uint32_t ble_ota_read_u32_le(const uint8_t *buf)
+{
+    return ((uint32_t)buf[0]) |
+           ((uint32_t)buf[1] << 8) |
+           ((uint32_t)buf[2] << 16) |
+           ((uint32_t)buf[3] << 24);
+}
 
 static const char *ble_ota_state_to_string(ble_ota_state_t state)
 {
@@ -123,6 +133,76 @@ static const char *ble_ota_state_to_string(ble_ota_state_t state)
     }
 }
 
+static int ble_ota_handle_start(const uint8_t *data, uint16_t len)
+{
+    esp_err_t err;
+
+    if (s_ota.in_progress) {
+        ESP_LOGW(TAG, "START rejected: OTA already in progress");
+        return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+    }
+
+    // Fresh session init
+    ble_ota_reset_session();
+
+    s_ota.expected_size = OTA_SIZE_UNKNOWN;
+
+    // Support:
+    // len == 1  => only START command
+    // len >= 5  => START + 4-byte little-endian expected firmware size
+    if (len >= 5) {
+        s_ota.expected_size = ble_ota_read_u32_le(&data[1]);
+    }
+
+    s_ota.update_partition = esp_ota_get_next_update_partition(NULL);
+    if (s_ota.update_partition == NULL) {
+        ESP_LOGE(TAG, "No OTA update partition available");
+        ble_ota_set_state(BLE_OTA_STATE_ERROR);
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    ESP_LOGI(TAG,
+             "Starting OTA on partition '%s' subtype=0x%x offset=0x%lx size=0x%lx expected_size=%u",
+             s_ota.update_partition->label,
+             s_ota.update_partition->subtype,
+             (unsigned long)s_ota.update_partition->address,
+             (unsigned long)s_ota.update_partition->size,
+             (unsigned int)s_ota.expected_size);
+
+    err = esp_ota_begin(s_ota.update_partition,
+                        s_ota.expected_size,
+                        &s_ota.ota_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
+        ble_ota_set_state(BLE_OTA_STATE_ERROR);
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+
+    s_ota.in_progress = true;
+    s_ota.start_received = true;
+    s_ota.finish_received = false;
+    s_ota.abort_requested = false;
+    s_ota.bytes_received = 0;
+    s_ota.chunk_count = 0;
+
+    ble_ota_set_state(BLE_OTA_STATE_READY);
+
+    ESP_LOGI(TAG, "OTA START accepted, session ready");
+    return 0;
+}
+static int ble_ota_data_chr_write(uint16_t conn_handle,
+                                  uint16_t attr_handle,
+                                  struct ble_gatt_access_ctxt *ctxt,
+                                  void *arg)
+{
+    (void)conn_handle;
+    (void)attr_handle;
+    (void)ctxt;
+    (void)arg;
+
+    ESP_LOGW(TAG, "OTA data write not implemented yet");
+    return BLE_ATT_ERR_UNLIKELY;
+}
 static int ota_control_access_cb(uint16_t conn_handle,
                                  uint16_t attr_handle,
                                  struct ble_gatt_access_ctxt *ctxt,
@@ -142,13 +222,19 @@ static int ota_control_access_cb(uint16_t conn_handle,
         return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
     }
 
-    uint8_t cmd = 0;
-    int rc = os_mbuf_copydata(ctxt->om, 0, 1, &cmd);
+    uint8_t buf[20];
+    if (len > sizeof(buf)) {
+        ESP_LOGW(TAG, "OTA control payload too large: %u", len);
+        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
+    int rc = os_mbuf_copydata(ctxt->om, 0, len, buf);
     if (rc != 0) {
-        ESP_LOGW(TAG, "Failed reading OTA control byte");
+        ESP_LOGW(TAG, "Failed reading OTA control payload");
         return BLE_ATT_ERR_UNLIKELY;
     }
 
+    uint8_t cmd = buf[0];
     switch (cmd) {
         case OTA_CMD_START:
             if (s_ota.in_progress) {
@@ -156,57 +242,18 @@ static int ota_control_access_cb(uint16_t conn_handle,
                 return BLE_ATT_ERR_UNLIKELY;
             }
 
-            s_ota.in_progress = true;
-            s_ota.start_received = true;
-            s_ota.finish_received = false;
-            s_ota.abort_requested = false;
-            s_ota.bytes_received = 0;
-            s_ota.chunk_count = 0;
-            s_ota.expected_size = 0;
-            s_ota.ota_handle = 0;
-            s_ota.update_partition = NULL;
 
-            ble_ota_set_state(BLE_OTA_STATE_READY);
             ESP_LOGI(TAG, "Received OTA START");
-            break;
+            return ble_ota_handle_start(buf, len);
 
         case OTA_CMD_FINISH:
-            if (!s_ota.in_progress || !s_ota.start_received) {
-                ESP_LOGW(TAG, "OTA FINISH rejected: no active session");
-                return BLE_ATT_ERR_UNLIKELY;
-            }
-
-            if (s_ota.abort_requested) {
-                ESP_LOGW(TAG, "OTA FINISH rejected: session already aborted");
-                return BLE_ATT_ERR_UNLIKELY;
-            }
-
-            s_ota.finish_received = true;
-            s_ota.in_progress = false;
-            ble_ota_set_state(BLE_OTA_STATE_FINISHED);
-
-            ESP_LOGI(TAG, "Received OTA FINISH: bytes=%u chunks=%u",
-                    (unsigned)s_ota.bytes_received,
-                    (unsigned)s_ota.chunk_count);
-            break;
+            ESP_LOGW(TAG, "OTA FINISH not implemented yet");
+            
+            return BLE_ATT_ERR_UNLIKELY;
 
         case OTA_CMD_ABORT:
-            if (!s_ota.in_progress && !s_ota.start_received) {
-                ESP_LOGW(TAG, "OTA ABORT ignored: no active session");
-                ble_ota_set_state(BLE_OTA_STATE_ABORTED);
-                return 0;
-            }
-
-            s_ota.abort_requested = true;
-            s_ota.in_progress = false;
-            ble_ota_set_state(BLE_OTA_STATE_ABORTED);
-
-            ESP_LOGI(TAG, "Received OTA ABORT: bytes=%u chunks=%u",
-                    (unsigned)s_ota.bytes_received,
-                    (unsigned)s_ota.chunk_count);
-
-            ble_ota_reset_session();
-            break;
+            ESP_LOGW(TAG, "OTA ABORT not implemented yet");
+            return BLE_ATT_ERR_UNLIKELY;
 
         default:
             ESP_LOGW(TAG, "Unknown OTA control cmd: 0x%02X", cmd);
@@ -216,53 +263,6 @@ static int ota_control_access_cb(uint16_t conn_handle,
     return 0;
 }
 
-static int ota_data_access_cb(uint16_t conn_handle,
-                              uint16_t attr_handle,
-                              struct ble_gatt_access_ctxt *ctxt,
-                              void *arg)
-{
-    (void)conn_handle;
-    (void)attr_handle;
-    (void)arg;
-    if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
-        return BLE_ATT_ERR_UNLIKELY;
-    }
-
-    if (!s_ota.in_progress || !s_ota.start_received) {
-        ESP_LOGW(TAG, "OTA data rejected: START not received");
-        return BLE_ATT_ERR_UNLIKELY;
-    }
-
-    if (s_ota.abort_requested) {
-        ESP_LOGW(TAG, "OTA data rejected: session aborted");
-        return BLE_ATT_ERR_UNLIKELY;
-    }
-
-    if (s_ota.finish_received) {
-        ESP_LOGW(TAG, "OTA data rejected: session already finished");
-        return BLE_ATT_ERR_UNLIKELY;
-    }
-
-    uint16_t len = OS_MBUF_PKTLEN(ctxt->om);
-    if (len == 0) {
-        ESP_LOGW(TAG, "OTA data write empty");
-        return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
-    }
-
-    if (s_ota.state == BLE_OTA_STATE_READY) {
-        ble_ota_set_state(BLE_OTA_STATE_RECEIVING);
-    }
-
-    s_ota.bytes_received += len;
-    s_ota.chunk_count += 1;
-
-    ESP_LOGI(TAG, "Received OTA data chunk: len=%u total=%u chunks=%u",
-            len,
-            (unsigned)s_ota.bytes_received,
-            (unsigned)s_ota.chunk_count);
-
-    return 0;
-}
 
 static const struct ble_gatt_svc_def ota_gatt_svcs[] = {
     {
@@ -277,7 +277,7 @@ static const struct ble_gatt_svc_def ota_gatt_svcs[] = {
             },
             {
                 .uuid = &ota_data_uuid.u,
-                .access_cb = ota_data_access_cb,
+                .access_cb = ble_ota_data_chr_write,
                 .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
                 .val_handle = &ota_data_val_handle,
             },
