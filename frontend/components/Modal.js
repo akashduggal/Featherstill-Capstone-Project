@@ -1,6 +1,8 @@
 import React from 'react';
 import { Modal as RNModal, View, StyleSheet } from 'react-native';
-import { Typography, Button, Card } from './';
+import { Typography } from './Typography';
+import { Button } from './Button';
+import { Card } from './Card';
 import { Colors } from '../constants/Colors';
 
 export const Modal = ({ visible, title, message, onClose }) => {

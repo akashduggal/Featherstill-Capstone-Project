@@ -5,7 +5,7 @@ import { Colors } from '../constants/Colors';
 
 export default function VersionDisplay() {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = Colors['dark'];
 
   const appVersion = Constants.expoConfig?.version || 'Unknown';
 

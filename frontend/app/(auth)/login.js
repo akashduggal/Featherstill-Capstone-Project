@@ -22,7 +22,7 @@ const { width } = Dimensions.get('window');
 export default function LoginScreen() {
     const router = useRouter();
     const colorScheme = useColorScheme();
-    const theme = colorScheme === 'dark' ? 'dark' : 'light';
+    const theme = 'dark';
     const colors = Colors[theme];
     const { loginWithGoogle, loginAsGuest } = useAuth();
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);

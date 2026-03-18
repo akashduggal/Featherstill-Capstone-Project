@@ -2,7 +2,11 @@ import React, { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { View, FlatList, PermissionsAndroid, Platform, StyleSheet, ActivityIndicator } from 'react-native';
 import { BLEContext } from '../context/BLEContext';
-import { Typography, Button, Card, SettingsDropdown, Modal } from './';
+import { Typography } from './Typography';
+import { Button } from './Button';
+import { Card } from './Card';
+import { SettingsDropdown } from './SettingsDropdown';
+import { Modal } from './Modal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
 
