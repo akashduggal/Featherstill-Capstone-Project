@@ -64,6 +64,21 @@ export const BLEProvider = ({ children }) => {
   const [otaProgress, setOtaProgress] = useState(0);
   const dataBuffer = useRef(Buffer.alloc(0));
   const otaCharacteristics = useRef({});
+  const otaRebootExpected = useRef(false);
+  const deviceDisconnectSubscription = useRef(null);
+
+  const cleanupConnectionState = () => {
+    if (deviceDisconnectSubscription.current) {
+      deviceDisconnectSubscription.current.remove();
+      deviceDisconnectSubscription.current = null;
+    }
+    setConnectedDevice(null);
+    setTelemetryData(null);
+    dataBuffer.current = Buffer.alloc(0);
+    setIsOtaSupported(false);
+    setOtaProgress(0);
+    otaCharacteristics.current = {};
+  };
 
   useEffect(() => {
     const subscription = manager.onStateChange((state) => {
@@ -123,6 +138,10 @@ export const BLEProvider = ({ children }) => {
   };
 
   const connectToDevice = async (device, onConnect, onFail) => {
+    setOtaStatus('idle');
+    setOtaProgress(0);
+    otaRebootExpected.current = false;
+
     try {
       await manager.stopDeviceScan();
       setIsScanning(false);
@@ -130,6 +149,14 @@ export const BLEProvider = ({ children }) => {
       const connected = device.connect
         ? await device.connect()
         : await manager.connectToDevice(device.id);
+
+      if (deviceDisconnectSubscription.current) {
+        deviceDisconnectSubscription.current.remove();
+      }
+      deviceDisconnectSubscription.current = connected.onDisconnected((error, disconnectedDevice) => {
+        console.log(`Device ${disconnectedDevice.id} disconnected. Reboot expected: ${otaRebootExpected.current}`, error);
+        cleanupConnectionState();
+      });
 
       setConnectedDevice(connected);
       addPreviouslyConnectedDevice({ id: connected.id, name: connected.name });
@@ -207,14 +234,10 @@ export const BLEProvider = ({ children }) => {
 
   const disconnectFromDevice = async () => {
     if (connectedDevice) {
+      otaRebootExpected.current = false; // Manual disconnect
       await connectedDevice.cancelConnection();
-      setConnectedDevice(null);
-      setTelemetryData(null);
-      dataBuffer.current = Buffer.alloc(0);
-      setIsOtaSupported(false);
-      setOtaStatus('idle');
-      setOtaProgress(0);
-      otaCharacteristics.current = {};
+    } else {
+      cleanupConnectionState();
     }
   };
 
@@ -346,6 +369,7 @@ export const BLEProvider = ({ children }) => {
       if (status === 'SUCCESS') {
         console.log('OTA completed successfully.');
         setOtaStatus('success');
+        otaRebootExpected.current = true;
       } else {
         throw new Error(`Expected SUCCESS, but got ${status}`);
       }
