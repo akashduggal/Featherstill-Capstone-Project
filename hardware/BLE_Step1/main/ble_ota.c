@@ -16,6 +16,11 @@ static const char *TAG = "BLE_OTA";
 #define OTA_CMD_FINISH  0x02
 #define OTA_CMD_ABORT   0x03
 
+#define OTA_DATA_MAX_CHUNK 244
+#define OTA_STATUS_MAX_LEN 64
+#define OTA_ACK_EVERY_BYTES 4096
+#define OTA_SIZE_UNKNOWN ((size_t)0)
+
 typedef enum {
     BLE_OTA_STATE_IDLE = 0,
     BLE_OTA_STATE_READY,
