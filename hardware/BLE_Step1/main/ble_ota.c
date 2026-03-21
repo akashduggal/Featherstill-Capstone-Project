@@ -28,7 +28,8 @@ typedef enum {
     BLE_OTA_STATE_RECEIVING,
     BLE_OTA_STATE_FINISHED,
     BLE_OTA_STATE_ABORTED,
-    BLE_OTA_STATE_ERROR
+    BLE_OTA_STATE_ERROR,
+    BLE_OTA_STATE_PAUSED,
 } ble_ota_state_t;
 
 typedef struct {
@@ -40,6 +41,7 @@ typedef struct {
     size_t bytes_received;
     size_t chunk_count;
     size_t expected_size;
+    bool paused_by_disconnect;
     esp_ota_handle_t ota_handle;
     const esp_partition_t *update_partition;
 } ble_ota_session_t;
@@ -116,6 +118,7 @@ static void ble_ota_reset_session(void)
     s_ota.expected_size = 0;
     s_ota.ota_handle = 0;
     s_ota.update_partition = NULL;
+    s_ota.paused_by_disconnect = false;
 
     ESP_LOGI(TAG, "OTA session reset -> state=%s",
              ble_ota_state_to_string(s_ota.state));
@@ -164,6 +167,26 @@ static void ble_ota_send_status(const char *msg)
     }
 }
 
+void ble_ota_on_disconnect(void)
+{
+    ESP_LOGI(TAG, "OTA disconnected");
+
+    s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    s_status_notify_enabled = false;
+
+    if (s_ota.in_progress && !s_ota.finish_received && !s_ota.abort_requested) {
+        ESP_LOGW(TAG, "Disconnect during OTA -> pausing session");
+        s_ota.paused_by_disconnect = true;
+        ble_ota_set_state(BLE_OTA_STATE_PAUSED);
+
+        char msg[OTA_STATUS_MAX_LEN];
+        snprintf(msg, sizeof(msg), "RESUME_AT:%u:%u",
+                 (unsigned)s_ota.chunk_count,
+                 (unsigned)s_ota.bytes_received);
+        ble_ota_update_last_status(msg);
+    }
+}
+
 static int ble_ota_status_access_cb(uint16_t conn_handle,
                                     uint16_t attr_handle,
                                     struct ble_gatt_access_ctxt *ctxt,
@@ -190,34 +213,32 @@ void ble_ota_on_connect(uint16_t conn_handle)
     s_conn_handle = conn_handle;
     s_status_notify_enabled = false;
     ESP_LOGI(TAG, "OTA connected: conn_handle=%u", (unsigned)conn_handle);
-}
 
-void ble_ota_on_disconnect(void)
-{
-    ESP_LOGI(TAG, "OTA disconnected");
-
-    s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
-    s_status_notify_enabled = false;
-
-    if (s_ota.in_progress) {
-        ESP_LOGW(TAG, "Disconnect during OTA -> aborting current session");
-
-        if (s_ota.ota_handle != 0) {
-            esp_ota_abort(s_ota.ota_handle);
-            s_ota.ota_handle = 0;
-        }
-
-        ble_ota_set_state(BLE_OTA_STATE_ABORTED);
-        ble_ota_update_last_status("ABORTED:DISCONNECT");
-        ble_ota_reset_session();
+    if (s_ota.paused_by_disconnect && s_ota.in_progress) {
+        ble_ota_set_state(BLE_OTA_STATE_PAUSED);
+        snprintf(s_last_status, sizeof(s_last_status),
+         "RESUME_AT:%u:%u",
+         (unsigned)s_ota.chunk_count,
+         (unsigned)s_ota.bytes_received);
     }
 }
+
 void ble_ota_on_subscribe(uint16_t attr_handle, uint8_t cur_notify)
 {
     if (attr_handle == ota_status_val_handle) {
         s_status_notify_enabled = (cur_notify != 0);
         ESP_LOGI(TAG, "OTA status notifications %s",
                  s_status_notify_enabled ? "ENABLED" : "DISABLED");
+
+        if (s_status_notify_enabled &&
+            s_ota.paused_by_disconnect &&
+            s_ota.in_progress) {
+            char msg[OTA_STATUS_MAX_LEN];
+            snprintf(msg, sizeof(msg), "RESUME_AT:%u:%u",
+                     (unsigned)s_ota.chunk_count,
+                     (unsigned)s_ota.bytes_received);
+            ble_ota_send_status(msg);
+        }
     }
 }
 
@@ -253,6 +274,8 @@ static const char *ble_ota_state_to_string(ble_ota_state_t state)
             return "ABORTED";
         case BLE_OTA_STATE_ERROR:
             return "ERROR";
+        case BLE_OTA_STATE_PAUSED:
+            return "PAUSED";
         default:
             return "UNKNOWN";
     }
@@ -336,6 +359,12 @@ static int ble_ota_data_chr_write(uint16_t conn_handle,
 
     if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) {
         return BLE_ATT_ERR_UNLIKELY;
+    }
+    if (s_ota.state == BLE_OTA_STATE_PAUSED) {
+        ESP_LOGI(TAG, "Resuming OTA from byte offset %u",
+                (unsigned)s_ota.bytes_received);
+        s_ota.paused_by_disconnect = false;
+        ble_ota_set_state(BLE_OTA_STATE_RECEIVING);
     }
 
     if (!s_ota.in_progress || !s_ota.start_received) {
@@ -445,17 +474,11 @@ static int ota_control_access_cb(uint16_t conn_handle,
     }
 
     uint8_t cmd = buf[0];
-    switch (cmd) {
+    switch (cmd) {        
         case OTA_CMD_START:
-            if (s_ota.in_progress) {
-                ESP_LOGW(TAG, "OTA START rejected: session already active");
-                return BLE_ATT_ERR_UNLIKELY;
-            }
-
-
             ESP_LOGI(TAG, "Received OTA START");
             return ble_ota_handle_start(buf, len);
-
+            
         case OTA_CMD_FINISH:
             if (!s_ota.in_progress || !s_ota.start_received) {
                 ESP_LOGW(TAG, "OTA FINISH rejected: no active session");
@@ -486,7 +509,13 @@ static int ota_control_access_cb(uint16_t conn_handle,
                 ble_ota_reset_session();
                 return BLE_ATT_ERR_UNLIKELY;
             }
-
+            if (s_ota.ota_handle == 0 || s_ota.update_partition == NULL) {
+                ESP_LOGE(TAG, "OTA FINISH rejected: invalid OTA session");
+                ble_ota_set_state(BLE_OTA_STATE_ERROR);
+                ble_ota_send_status("ERROR:NO_HANDLE");
+                ble_ota_reset_session();
+                return BLE_ATT_ERR_UNLIKELY;
+            }
             ESP_LOGI(TAG, "Finalizing OTA...");
 
         
@@ -513,6 +542,10 @@ static int ota_control_access_cb(uint16_t conn_handle,
             s_ota.finish_received = true;
             s_ota.in_progress = false;
             ble_ota_set_state(BLE_OTA_STATE_FINISHED);
+            ESP_LOGI(TAG, "OTA complete: bytes=%u chunks=%u expected=%u",
+            (unsigned)s_ota.bytes_received,
+            (unsigned)s_ota.chunk_count,
+            (unsigned)s_ota.expected_size);
             ble_ota_send_status("SUCCESS");
 
             ESP_LOGI(TAG, "OTA SUCCESS. Rebooting...");
