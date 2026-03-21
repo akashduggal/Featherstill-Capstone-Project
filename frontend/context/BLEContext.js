@@ -65,6 +65,8 @@ export const BLEProvider = ({ children }) => {
   const dataBuffer = useRef(Buffer.alloc(0));
   const otaCharacteristics = useRef({});
   const otaRebootExpected = useRef(false);
+  const otaResumeInfo = useRef(null); // To store { chunk_count, bytes_received }
+  const statusResolver = useRef(null); // For the OTA status promise
   const deviceDisconnectSubscription = useRef(null);
 
   const cleanupConnectionState = () => {
@@ -150,6 +152,10 @@ export const BLEProvider = ({ children }) => {
         ? await device.connect()
         : await manager.connectToDevice(device.id);
 
+      console.log(`[BLE] Connected to ${connected.name}. Requesting MTU...`);
+      const deviceWithHighMTU = await connected.requestMTU(247); // 244 payload + 3 header
+      console.log(`[BLE] MTU negotiated to: ${deviceWithHighMTU.mtu}`);
+
       if (deviceDisconnectSubscription.current) {
         deviceDisconnectSubscription.current.remove();
       }
@@ -171,6 +177,7 @@ export const BLEProvider = ({ children }) => {
       for (const service of services) {
         const characteristics = await service.characteristics();
         if (service.uuid === OTA_SERVICE_UUID) {
+          console.log('[BLE] OTA Service found.');
           otaServiceFound = true;
           for (const characteristic of characteristics) {
             if (characteristic.uuid === OTA_CONTROL_UUID) {
@@ -218,6 +225,44 @@ export const BLEProvider = ({ children }) => {
       }
 
       if (otaServiceFound && otaCharacteristics.current.control && otaCharacteristics.current.data && otaCharacteristics.current.status) {
+        // Subscribe to notifications
+        otaCharacteristics.current.status.monitor((error, characteristic) => {
+          // This is the main handler for all status updates during the OTA process
+          if (error) {
+            if (otaRebootExpected.current && error.message.includes('Operation was cancelled')) {
+              console.log('[OTA] Status monitor gracefully disconnected post-update as expected.');
+            } else {
+              console.error('[OTA] Status monitor error:', error);
+            }
+            return;
+          }
+          if (characteristic?.value) {
+            const status = Buffer.from(characteristic.value, 'base64').toString('utf8');
+            console.log(`[OTA] Status Update Received: "${status}"`);
+            // The waitForStatus promise resolver will be called from here
+            if (statusResolver.current) {
+              statusResolver.current.resolve(status);
+            }
+          }
+        });
+        console.log('[BLE] Subscribed to OTA Status notifications.');
+
+        // As per the guide, read the status immediately after subscribing to check for a resume state
+        console.log('[BLE] Reading initial OTA status for resume check...');
+        const initialStatusChar = await otaCharacteristics.current.status.read();
+        if (initialStatusChar?.value) {
+          const initialStatus = Buffer.from(initialStatusChar.value, 'base64').toString('utf8');
+          console.log(`[BLE] Initial OTA Status is: "${initialStatus}"`);
+          if (initialStatus.startsWith('RESUME_AT:')) {
+            const parts = initialStatus.split(':');
+            otaResumeInfo.current = {
+              chunk_count: parseInt(parts[1], 10),
+              bytes_received: parseInt(parts[2], 10),
+            };
+            console.log(`[BLE] Stored resume information:`, otaResumeInfo.current);
+          }
+        }
+
         setIsOtaSupported(true);
         console.log('OTA service is supported on this device.');
       } else {
@@ -243,153 +288,126 @@ export const BLEProvider = ({ children }) => {
 
   const startOta = async (firmware) => {
     if (!isOtaSupported || !otaCharacteristics.current.control || !otaCharacteristics.current.status || !otaCharacteristics.current.data) {
-      console.log('OTA not supported or characteristics not found.');
+      console.error('[OTA] Error: OTA not supported or characteristics not found.');
       setOtaStatus('error');
       return;
     }
 
+    const firmwareSize = firmware.length;
+    console.log(`[OTA] Starting update. Firmware size: ${firmwareSize} bytes.`);
     setOtaStatus('starting');
     setOtaProgress(0);
 
-    const firmwareSize = firmware.length;
-    let statusMonitor = null;
-    let statusQueue = [];
-    let statusResolver = null;
-
-    const processStatusQueue = () => {
-      if (statusResolver && statusQueue.length > 0) {
-        const nextStatus = statusQueue.shift();
-        if (nextStatus.error) {
-          statusResolver.reject(nextStatus.error);
-        } else {
-          statusResolver.resolve(nextStatus.status);
-        }
-        statusResolver = null;
-      }
-    };
-
-    const waitForNextStatus = (timeout = 10000) => {
+    // This is a simplified promise-based wrapper around the status monitor
+    const waitForStatus = (predicate, timeout = 30000) => {
       return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => reject(new Error('Timeout waiting for OTA status')), timeout);
-        statusResolver = {
+        const timeoutId = setTimeout(() => {
+          statusResolver.current = null;
+          reject(new Error(`Timeout waiting for OTA status.`));
+        }, timeout);
+
+        statusResolver.current = {
           resolve: (status) => {
-            clearTimeout(timeoutId);
-            resolve(status);
-          },
-          reject: (error) => {
-            clearTimeout(timeoutId);
-            reject(error);
+            if (predicate(status)) {
+              clearTimeout(timeoutId);
+              statusResolver.current = null;
+              resolve(status);
+            }
           },
         };
-        processStatusQueue();
       });
     };
 
     try {
-      statusMonitor = otaCharacteristics.current.status.monitor((error, characteristic) => {
-        if (error) {
-          console.log('OTA status monitor error:', error);
-          statusQueue.push({ error });
-        } else if (characteristic?.value) {
-          const status = Buffer.from(characteristic.value, 'base64').toString('utf8');
-          console.log('OTA Status Update:', status);
-          statusQueue.push({ status });
-        }
-        processStatusQueue();
-      });
-
-      // 1. Send START command
-      const startPayload = Buffer.alloc(5);
-      startPayload.writeUInt8(0x01, 0); // START command
-      startPayload.writeUInt32LE(firmwareSize, 1);
-      await otaCharacteristics.current.control.writeWithoutResponse(startPayload.toString('base64'));
-      console.log('Start OTA command sent.');
-
-      // 2. Wait for READY response
-      let status = await waitForNextStatus();
-      if (status !== 'READY') {
-        throw new Error(`Expected READY, but got ${status}`);
-      }
-      console.log('Device is READY. Starting transfer...');
-      setOtaStatus('in_progress');
-
-      // 3. Send firmware in batches with acknowledgement and retries
-      const chunkSize = 244;
-      const batchSize = 25;
-      const maxRetries = 5;
       let offset = 0;
+      let chunkCount = 0;
 
+      // 1. Check for a resume state
+      if (otaResumeInfo.current && otaResumeInfo.current.bytes_received < firmwareSize) {
+        console.log(`[OTA] Resuming update from offset: ${otaResumeInfo.current.bytes_received}`);
+        offset = otaResumeInfo.current.bytes_received;
+        chunkCount = otaResumeInfo.current.chunk_count;
+        setOtaStatus('in_progress');
+        setOtaProgress(Math.round((offset / firmwareSize) * 100));
+      } else {
+        // 2. If not resuming, send START and wait for READY
+        console.log('[OTA] Starting fresh update. Sending START command...');
+        const startPayload = Buffer.alloc(5);
+        startPayload.writeUInt8(0x01, 0); // START command
+        startPayload.writeUInt32LE(firmwareSize, 1);
+        await otaCharacteristics.current.control.writeWithoutResponse(startPayload.toString('base64'));
+        console.log('[OTA] START command sent. Waiting for READY...');
+
+        await waitForStatus(s => s === 'READY');
+        console.log('[OTA] Device is READY. Starting transfer...');
+        setOtaStatus('in_progress');
+      }
+
+      otaResumeInfo.current = null; // Consume resume info
+
+      // 3. Stream firmware chunks using stop-and-wait
+      const chunkSize = 244;
       while (offset < firmwareSize) {
-        let attempt = 0;
-        let batchAcknowledged = false;
-        const batchStartOffset = offset;
+        const chunkEnd = Math.min(offset + chunkSize, firmwareSize);
+        const chunk = firmware.slice(offset, chunkEnd);
+        
+        await otaCharacteristics.current.data.writeWithoutResponse(chunk.toString('base64'));
+        chunkCount++;
 
-        while (attempt < maxRetries && !batchAcknowledged) {
-          if (attempt > 0) {
-            console.log(`Retrying batch from offset ${batchStartOffset}. Attempt ${attempt + 1}/${maxRetries}`);
-            offset = batchStartOffset;
-            setOtaProgress(Math.round((offset / firmwareSize) * 100));
+        const expectedAckOffset = offset + chunk.length;
+        const ackStatus = await waitForStatus(s => {
+          if (s.startsWith('ERROR')) throw new Error(s); // Fail fast on firmware error
+          if (s.startsWith('ACK:')) {
+            const parts = s.split(':');
+            const ackedBytes = parseInt(parts[2], 10);
+            return ackedBytes >= expectedAckOffset;
           }
-          attempt++;
+          return false;
+        });
 
-          const batchEndOffset = Math.min(firmwareSize, offset + chunkSize * batchSize);
-          while (offset < batchEndOffset) {
-            const chunkEnd = Math.min(offset + chunkSize, firmwareSize);
-            const chunk = firmware.slice(offset, chunkEnd);
-            await otaCharacteristics.current.data.writeWithoutResponse(chunk.toString('base64'));
-            offset += chunk.length;
-            setOtaProgress(Math.round((offset / firmwareSize) * 100));
-          }
-
-          const expectedAck = `RX:${offset}`;
-          status = await waitForNextStatus(3000); 
-
-          if (status === expectedAck) {
-            console.log(`Batch acknowledged at offset ${offset}.`);
-            batchAcknowledged = true;
-          } else {
-            console.log(`ACK mismatch. Expected ${expectedAck}, got ${status}.`);
-            if (status.startsWith('ERROR')) throw new Error(status);
-          }
-        }
-
-        if (!batchAcknowledged) {
-          throw new Error(`Failed to get ACK for batch at offset ${batchStartOffset} after ${maxRetries} attempts.`);
-        }
+        console.log(`[OTA] ACK received: "${ackStatus}".`);
+        offset = expectedAckOffset;
+        setOtaProgress(Math.round((offset / firmwareSize) * 100));
       }
 
       // 4. Send FINISH command
+      console.log('[OTA] All bytes sent. Sending FINISH command...');
       const endPayload = Buffer.alloc(1);
       endPayload.writeUInt8(0x02, 0); // FINISH command
       await otaCharacteristics.current.control.writeWithoutResponse(endPayload.toString('base64'));
-      console.log('End OTA command sent.');
 
       // 5. Wait for SUCCESS
-      status = await waitForNextStatus();
-      if (status === 'SUCCESS') {
-        console.log('OTA completed successfully.');
-        setOtaStatus('success');
-        otaRebootExpected.current = true;
-      } else {
-        throw new Error(`Expected SUCCESS, but got ${status}`);
-      }
+      await waitForStatus(s => s === 'SUCCESS');
+      console.log('[OTA] SUCCESS! OTA completed. Device will reboot.');
+      setOtaStatus('success');
+      otaRebootExpected.current = true;
 
     } catch (error) {
-      console.log('OTA process failed:', error.message);
+      console.error(`[OTA] Fatal error during OTA process: ${error.message}`);
       setOtaStatus('error');
-      const abortPayload = Buffer.alloc(1);
-      abortPayload.writeUInt8(0x03, 0); // ABORT command
+      // Don't send ABORT if the error came from the device itself
+      if (!error.message.startsWith('ERROR:')) {
+        await abortOta();
+      }
+    }
+  };
+
+  const abortOta = async () => {
+    console.log('[OTA] User requested to abort OTA process.');
+    setOtaStatus('error'); // Set status to error to show the close button
+
+    if (otaCharacteristics.current.control) {
       try {
+        console.log('[OTA] Sending ABORT command...');
+        const abortPayload = Buffer.alloc(1);
+        abortPayload.writeUInt8(0x03, 0); // ABORT command
         await otaCharacteristics.current.control.writeWithoutResponse(abortPayload.toString('base64'));
-        console.log('Abort OTA command sent.');
+        console.log('[OTA] ABORT command sent.');
       } catch (abortError) {
-        console.log('Failed to send Abort OTA command:', abortError);
+        console.error('[OTA] Failed to send ABORT command:', abortError);
       }
-    } finally {
-      if (statusMonitor) {
-        statusMonitor.remove();
-        console.log('OTA status monitor removed.');
-      }
+    } else {
+      console.warn('[OTA] Cannot send ABORT command: control characteristic is not available.');
     }
   };
 
@@ -409,6 +427,7 @@ export const BLEProvider = ({ children }) => {
         connectToDevice,
         disconnectFromDevice,
         startOta,
+        abortOta,
       }}
     >
       {children}
