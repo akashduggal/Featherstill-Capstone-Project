@@ -141,7 +141,7 @@ void app_main(void)
     log_maybe_wipe_on_format_change();
     battery_log_seq_init();
     ble_stack_start();  // start BLE after FS is ready
-
+    ESP_LOGW(TAGT, "New version updated");
     // (Remove test_battery_log_append now — already tested)
     xTaskCreate(mock_sender_task, "mock_sender", 4096, NULL, 5, NULL);
 }

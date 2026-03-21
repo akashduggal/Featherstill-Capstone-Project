@@ -47,27 +47,31 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
             s_conn_handle = event->connect.conn_handle;
             ESP_LOGI(TAG, "Connected (handle=%d)", s_conn_handle);
             ble_batt_mock_on_connect(s_conn_handle);
+            ble_ota_on_connect(s_conn_handle);
         } else {
             ESP_LOGW(TAG, "Connect failed; status=%d", event->connect.status);
             start_advertising();
         }
         return 0;
     case BLE_GAP_EVENT_MTU:
-    ESP_LOGI(TAG, "MTU updated: conn=%d mtu=%d",
-             event->mtu.conn_handle, event->mtu.value);
-    return 0;
+        ESP_LOGI(TAG, "MTU updated: conn=%d mtu=%d",
+                 event->mtu.conn_handle, event->mtu.value);
+        return 0;
 
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "Disconnected; reason=%d", event->disconnect.reason);
         s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 
         ble_batt_mock_on_disconnect();
+        ble_ota_on_disconnect();
         start_advertising();
         return 0;
 
     case BLE_GAP_EVENT_SUBSCRIBE:
         ble_batt_mock_on_subscribe(event->subscribe.attr_handle,
                                    event->subscribe.cur_notify);
+        ble_ota_on_subscribe(event->subscribe.attr_handle,
+                             event->subscribe.cur_notify);
         return 0;
 
     case BLE_GAP_EVENT_ENC_CHANGE:
@@ -138,7 +142,6 @@ void ble_stack_start(void)
 {
     ESP_LOGI(TAG, "ble_stack_start begin");
 
-
     nimble_port_init();
 
     ble_svc_gap_init();
@@ -146,16 +149,15 @@ void ble_stack_start(void)
 
     ble_svc_gap_device_name_set("ESP32_STEP1");
 
-    // Memory saver: bonding off by default (turn on later if needed)
     ble_hs_cfg.sm_bonding = BLE_ENABLE_BONDING;
     ble_hs_cfg.sm_sc = BLE_ENABLE_BONDING;
     ble_hs_cfg.sm_mitm = 0;
     ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
     ble_att_set_preferred_mtu(247);
 
-    #if BLE_ENABLE_BONDING
+#if BLE_ENABLE_BONDING
     ble_store_config_init();
-    #endif
+#endif
 
     ble_hs_cfg.reset_cb = on_reset;
     ble_hs_cfg.sync_cb = on_sync;

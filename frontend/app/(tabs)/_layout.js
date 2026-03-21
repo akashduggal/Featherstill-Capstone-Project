@@ -22,17 +22,6 @@ export default function TabsLayout() {
       testID="tabs-container"
     >
       <Tabs.Screen
-        name="bluetooth"
-        options={{
-          title: "Bluetooth",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bluetooth" size={size} color={color} />
-          ),
-        }}
-        testID="tab-screen-bluetooth"
-      />
-
-      <Tabs.Screen
         name='dashboard'
         options={{
           title: 'Dashboard',

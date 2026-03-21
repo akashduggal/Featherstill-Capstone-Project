@@ -1,4 +1,4 @@
-# Featherstill Capstone Project
+# Fetherstill Capstone Project
 
 ## Overview
 
