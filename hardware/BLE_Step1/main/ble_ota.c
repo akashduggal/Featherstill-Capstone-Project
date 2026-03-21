@@ -444,9 +444,69 @@ static int ota_control_access_cb(uint16_t conn_handle,
             return ble_ota_handle_start(buf, len);
 
         case OTA_CMD_FINISH:
-            ESP_LOGW(TAG, "OTA FINISH not implemented yet");
+            if (!s_ota.in_progress || !s_ota.start_received) {
+                ESP_LOGW(TAG, "OTA FINISH rejected: no active session");
+                ble_ota_send_status("ERROR:NO_SESSION");
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            if (s_ota.abort_requested) {
+                ESP_LOGW(TAG, "OTA FINISH rejected: session already aborted");
+                ble_ota_send_status("ERROR:ABORTED");
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            if (s_ota.expected_size != OTA_SIZE_UNKNOWN &&
+                s_ota.expected_size > 0 &&
+                s_ota.bytes_received != s_ota.expected_size) {
+
+                ESP_LOGE(TAG, "OTA size mismatch: expected=%u received=%u",
+                        (unsigned)s_ota.expected_size,
+                        (unsigned)s_ota.bytes_received);
+
+                if (s_ota.ota_handle != 0) {
+                    esp_ota_abort(s_ota.ota_handle);
+                }
+
+                ble_ota_set_state(BLE_OTA_STATE_ERROR);
+                ble_ota_send_status("ERROR:SIZE_MISMATCH");
+                ble_ota_reset_session();
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+
+            ESP_LOGI(TAG, "Finalizing OTA...");
+
+        
+            esp_err_t err = esp_ota_end(s_ota.ota_handle);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "esp_ota_end failed: %s", esp_err_to_name(err));
+                ble_ota_set_state(BLE_OTA_STATE_ERROR);
+                ble_ota_send_status("ERROR:END_FAIL");
+                ble_ota_reset_session();
+                return BLE_ATT_ERR_UNLIKELY;
+            }
+            s_ota.ota_handle = 0;
+
+            err = esp_ota_set_boot_partition(s_ota.update_partition);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
+                ble_ota_set_state(BLE_OTA_STATE_ERROR);
+                ble_ota_send_status("ERROR:BOOT_SET_FAIL");
+                ble_ota_reset_session();
+                return BLE_ATT_ERR_UNLIKELY;
+            }
             
-            return BLE_ATT_ERR_UNLIKELY;
+
+            s_ota.finish_received = true;
+            s_ota.in_progress = false;
+            ble_ota_set_state(BLE_OTA_STATE_FINISHED);
+            ble_ota_send_status("SUCCESS");
+
+            ESP_LOGI(TAG, "OTA SUCCESS. Rebooting...");
+            vTaskDelay(pdMS_TO_TICKS(700));
+            esp_restart();
+
+            return 0;
 
         case OTA_CMD_ABORT:
             ESP_LOGW(TAG, "OTA ABORT not implemented yet");
