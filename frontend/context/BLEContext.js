@@ -4,7 +4,13 @@ import { Buffer } from 'buffer';
 import { insertTelemetry } from "../services/database"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 export const BLEContext = createContext();
+
+const OTA_SERVICE_UUID = 'f0debc9a-7856-3412-7856-341278563412';
+const OTA_CONTROL_UUID = 'f0debc9a-7856-3412-7856-341278563413';
+const OTA_DATA_UUID = 'f0debc9a-7856-3412-7856-341278563414';
+const OTA_STATUS_UUID = 'f0debc9a-7856-3412-7856-341278563415';
 
 const parseTelemetryData = (buffer) => {
   if (buffer.length < 49) {
@@ -53,7 +59,28 @@ export const BLEProvider = ({ children }) => {
   const [telemetryData, setTelemetryData] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [previouslyConnectedDevices, setPreviouslyConnectedDevices] = useState([]);
+  const [isOtaSupported, setIsOtaSupported] = useState(false);
+  const [otaStatus, setOtaStatus] = useState('idle');
+  const [otaProgress, setOtaProgress] = useState(0);
   const dataBuffer = useRef(Buffer.alloc(0));
+  const otaCharacteristics = useRef({});
+  const otaRebootExpected = useRef(false);
+  const otaResumeInfo = useRef(null); // To store { chunk_count, bytes_received }
+  const statusResolver = useRef(null); // For the OTA status promise
+  const deviceDisconnectSubscription = useRef(null);
+
+  const cleanupConnectionState = () => {
+    if (deviceDisconnectSubscription.current) {
+      deviceDisconnectSubscription.current.remove();
+      deviceDisconnectSubscription.current = null;
+    }
+    setConnectedDevice(null);
+    setTelemetryData(null);
+    dataBuffer.current = Buffer.alloc(0);
+    setIsOtaSupported(false);
+    setOtaProgress(0);
+    otaCharacteristics.current = {};
+  };
 
   useEffect(() => {
     const subscription = manager.onStateChange((state) => {
@@ -113,6 +140,10 @@ export const BLEProvider = ({ children }) => {
   };
 
   const connectToDevice = async (device, onConnect, onFail) => {
+    setOtaStatus('idle');
+    setOtaProgress(0);
+    otaRebootExpected.current = false;
+
     try {
       await manager.stopDeviceScan();
       setIsScanning(false);
@@ -120,6 +151,18 @@ export const BLEProvider = ({ children }) => {
       const connected = device.connect
         ? await device.connect()
         : await manager.connectToDevice(device.id);
+
+      console.log(`[BLE] Connected to ${connected.name}. Requesting MTU...`);
+      const deviceWithHighMTU = await connected.requestMTU(247); // 244 payload + 3 header
+      console.log(`[BLE] MTU negotiated to: ${deviceWithHighMTU.mtu}`);
+
+      if (deviceDisconnectSubscription.current) {
+        deviceDisconnectSubscription.current.remove();
+      }
+      deviceDisconnectSubscription.current = connected.onDisconnected((error, disconnectedDevice) => {
+        console.log(`Device ${disconnectedDevice.id} disconnected. Reboot expected: ${otaRebootExpected.current}`, error);
+        cleanupConnectionState();
+      });
 
       setConnectedDevice(connected);
       addPreviouslyConnectedDevice({ id: connected.id, name: connected.name });
@@ -129,11 +172,27 @@ export const BLEProvider = ({ children }) => {
 
       await connected.discoverAllServicesAndCharacteristics();
       const services = await connected.services();
+      let otaServiceFound = false;
 
       for (const service of services) {
         const characteristics = await service.characteristics();
+        if (service.uuid === OTA_SERVICE_UUID) {
+          console.log('[BLE] OTA Service found.');
+          otaServiceFound = true;
+          for (const characteristic of characteristics) {
+            if (characteristic.uuid === OTA_CONTROL_UUID) {
+              otaCharacteristics.current.control = characteristic;
+            } else if (characteristic.uuid === OTA_DATA_UUID) {
+              otaCharacteristics.current.data = characteristic;
+            } else if (characteristic.uuid === OTA_STATUS_UUID) {
+              otaCharacteristics.current.status = characteristic;
+            }
+          }
+        }
+
         for (const characteristic of characteristics) {
-          if (characteristic.isNotifiable) {
+          if (characteristic.isNotifiable && service.uuid !== OTA_SERVICE_UUID) {
+            console.log(`Subscribing to telemetry characteristic ${characteristic.uuid}`);
             characteristic.monitor((error, char) => {
               if (error) {
                 return;
@@ -164,6 +223,52 @@ export const BLEProvider = ({ children }) => {
           }
         }
       }
+
+      if (otaServiceFound && otaCharacteristics.current.control && otaCharacteristics.current.data && otaCharacteristics.current.status) {
+        // Subscribe to notifications
+        otaCharacteristics.current.status.monitor((error, characteristic) => {
+          // This is the main handler for all status updates during the OTA process
+          if (error) {
+            if (otaRebootExpected.current && error.message.includes('Operation was cancelled')) {
+              console.log('[OTA] Status monitor gracefully disconnected post-update as expected.');
+            } else {
+              console.error('[OTA] Status monitor error:', error);
+            }
+            return;
+          }
+          if (characteristic?.value) {
+            const status = Buffer.from(characteristic.value, 'base64').toString('utf8');
+            console.log(`[OTA] Status Update Received: "${status}"`);
+            // The waitForStatus promise resolver will be called from here
+            if (statusResolver.current) {
+              statusResolver.current.resolve(status);
+            }
+          }
+        });
+        console.log('[BLE] Subscribed to OTA Status notifications.');
+
+        // As per the guide, read the status immediately after subscribing to check for a resume state
+        console.log('[BLE] Reading initial OTA status for resume check...');
+        const initialStatusChar = await otaCharacteristics.current.status.read();
+        if (initialStatusChar?.value) {
+          const initialStatus = Buffer.from(initialStatusChar.value, 'base64').toString('utf8');
+          console.log(`[BLE] Initial OTA Status is: "${initialStatus}"`);
+          if (initialStatus.startsWith('RESUME_AT:')) {
+            const parts = initialStatus.split(':');
+            otaResumeInfo.current = {
+              chunk_count: parseInt(parts[1], 10),
+              bytes_received: parseInt(parts[2], 10),
+            };
+            console.log(`[BLE] Stored resume information:`, otaResumeInfo.current);
+          }
+        }
+
+        setIsOtaSupported(true);
+        console.log('OTA service is supported on this device.');
+      } else {
+        setIsOtaSupported(false);
+        console.log('OTA service not supported on this device.');
+      }
     } catch (error) {
       console.log(error);
       if (onFail) {
@@ -174,12 +279,138 @@ export const BLEProvider = ({ children }) => {
 
   const disconnectFromDevice = async () => {
     if (connectedDevice) {
+      otaRebootExpected.current = false; // Manual disconnect
       await connectedDevice.cancelConnection();
-      setConnectedDevice(null);
-      setTelemetryData(null);
-      dataBuffer.current = Buffer.alloc(0);
+    } else {
+      cleanupConnectionState();
     }
   };
+
+  const startOta = async (firmware) => {
+    if (!isOtaSupported || !otaCharacteristics.current.control || !otaCharacteristics.current.status || !otaCharacteristics.current.data) {
+      console.error('[OTA] Error: OTA not supported or characteristics not found.');
+      setOtaStatus('error');
+      return;
+    }
+
+    const firmwareSize = firmware.length;
+    console.log(`[OTA] Starting update. Firmware size: ${firmwareSize} bytes.`);
+    setOtaStatus('starting');
+    setOtaProgress(0);
+
+    // This is a simplified promise-based wrapper around the status monitor
+    const waitForStatus = (predicate, timeout = 30000) => {
+      return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          statusResolver.current = null;
+          reject(new Error(`Timeout waiting for OTA status.`));
+        }, timeout);
+
+        statusResolver.current = {
+          resolve: (status) => {
+            if (predicate(status)) {
+              clearTimeout(timeoutId);
+              statusResolver.current = null;
+              resolve(status);
+            }
+          },
+        };
+      });
+    };
+
+    try {
+      let offset = 0;
+      let chunkCount = 0;
+
+      // 1. Check for a resume state
+      if (otaResumeInfo.current && otaResumeInfo.current.bytes_received < firmwareSize) {
+        console.log(`[OTA] Resuming update from offset: ${otaResumeInfo.current.bytes_received}`);
+        offset = otaResumeInfo.current.bytes_received;
+        chunkCount = otaResumeInfo.current.chunk_count;
+        setOtaStatus('in_progress');
+        setOtaProgress(Math.round((offset / firmwareSize) * 100));
+      } else {
+        // 2. If not resuming, send START and wait for READY
+        console.log('[OTA] Starting fresh update. Sending START command...');
+        const startPayload = Buffer.alloc(5);
+        startPayload.writeUInt8(0x01, 0); // START command
+        startPayload.writeUInt32LE(firmwareSize, 1);
+        await otaCharacteristics.current.control.writeWithoutResponse(startPayload.toString('base64'));
+        console.log('[OTA] START command sent. Waiting for READY...');
+
+        await waitForStatus(s => s === 'READY');
+        console.log('[OTA] Device is READY. Starting transfer...');
+        setOtaStatus('in_progress');
+      }
+
+      otaResumeInfo.current = null; // Consume resume info
+
+      // 3. Stream firmware chunks using stop-and-wait
+      const chunkSize = 244;
+      while (offset < firmwareSize) {
+        const chunkEnd = Math.min(offset + chunkSize, firmwareSize);
+        const chunk = firmware.slice(offset, chunkEnd);
+        
+        await otaCharacteristics.current.data.writeWithoutResponse(chunk.toString('base64'));
+        chunkCount++;
+
+        const expectedAckOffset = offset + chunk.length;
+        const ackStatus = await waitForStatus(s => {
+          if (s.startsWith('ERROR')) throw new Error(s); // Fail fast on firmware error
+          if (s.startsWith('ACK:')) {
+            const parts = s.split(':');
+            const ackedBytes = parseInt(parts[2], 10);
+            return ackedBytes >= expectedAckOffset;
+          }
+          return false;
+        });
+
+        console.log(`[OTA] ACK received: "${ackStatus}".`);
+        offset = expectedAckOffset;
+        setOtaProgress(Math.round((offset / firmwareSize) * 100));
+      }
+
+      // 4. Send FINISH command
+      console.log('[OTA] All bytes sent. Sending FINISH command...');
+      const endPayload = Buffer.alloc(1);
+      endPayload.writeUInt8(0x02, 0); // FINISH command
+      await otaCharacteristics.current.control.writeWithoutResponse(endPayload.toString('base64'));
+
+      // 5. Wait for SUCCESS
+      await waitForStatus(s => s === 'SUCCESS');
+      console.log('[OTA] SUCCESS! OTA completed. Device will reboot.');
+      setOtaStatus('success');
+      otaRebootExpected.current = true;
+
+    } catch (error) {
+      console.error(`[OTA] Fatal error during OTA process: ${error.message}`);
+      setOtaStatus('error');
+      // Don't send ABORT if the error came from the device itself
+      if (!error.message.startsWith('ERROR:')) {
+        await abortOta();
+      }
+    }
+  };
+
+  const abortOta = async () => {
+    console.log('[OTA] User requested to abort OTA process.');
+    setOtaStatus('error'); // Set status to error to show the close button
+
+    if (otaCharacteristics.current.control) {
+      try {
+        console.log('[OTA] Sending ABORT command...');
+        const abortPayload = Buffer.alloc(1);
+        abortPayload.writeUInt8(0x03, 0); // ABORT command
+        await otaCharacteristics.current.control.writeWithoutResponse(abortPayload.toString('base64'));
+        console.log('[OTA] ABORT command sent.');
+      } catch (abortError) {
+        console.error('[OTA] Failed to send ABORT command:', abortError);
+      }
+    } else {
+      console.warn('[OTA] Cannot send ABORT command: control characteristic is not available.');
+    }
+  };
+
 
   return (
     <BLEContext.Provider
@@ -189,9 +420,14 @@ export const BLEProvider = ({ children }) => {
         telemetryData,
         isScanning,
         previouslyConnectedDevices,
+        isOtaSupported,
+        otaStatus,
+        otaProgress,
         scanForDevices,
         connectToDevice,
         disconnectFromDevice,
+        startOta,
+        abortOta,
       }}
     >
       {children}

@@ -9,6 +9,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { Asset } from 'expo-asset';
+import { File } from 'expo-file-system';
+import { Buffer } from 'buffer';
 import { useAuth, useSettings } from "../../context";
 import { BLEContext } from "../../context/BLEContext";
 import { Colors } from "../../constants/Colors";
@@ -17,6 +20,7 @@ import {
   SettingsDropdown,
   SettingsCheckbox,
   ActionButton,
+  OtaUpdateModal,
 } from "../../components";
 
 export default function Settings() {
@@ -35,6 +39,42 @@ export default function Settings() {
   const handleTempUnitChange = (index) => {
     setSelectedTempUnitIndex(index);
     setTemperatureUnit(index === 0 ? 'C' : 'F');
+  };
+
+  const {
+    isOtaSupported,
+    startOta,
+    otaStatus,
+    otaProgress,
+    abortOta,
+  } = React.useContext(BLEContext);
+  const [isOtaModalVisible, setIsOtaModalVisible] = useState(false);
+
+  const handleOtaUpdate = async () => {
+    if (!isOtaSupported) {
+      console.log('OTA is not supported on this device.');
+      return;
+    }
+
+    setIsOtaModalVisible(true);
+    console.log('Starting OTA update process...');
+    // return
+    try {
+      console.log('Loading firmware asset...');
+      const asset = Asset.fromModule(require('../../assets/BLE_Step1.bin'));
+      await asset.downloadAsync();
+      console.log('Firmware asset downloaded to:', asset.localUri);
+
+      console.log('Reading firmware file using the new File API...');
+      const file = new File(asset.localUri);
+      const fileContent = await file.arrayBuffer();
+      const firmware = Buffer.from(fileContent);
+      console.log(`Firmware loaded. Size: ${firmware.length} bytes.`);
+
+      await startOta(firmware);
+    } catch (error) {
+      console.error('OTA update failed:', error);
+    }
   };
 
   const handleLogout = async () => {
@@ -104,6 +144,14 @@ export default function Settings() {
             onPress={() => router.push("/bluetooth")}
             colors={colors}
           />
+          {isOtaSupported && (
+            <ActionButton
+              title="Start OTA Update"
+              icon="cloud-upload-outline"
+              onPress={handleOtaUpdate}
+              colors={colors}
+            />
+          )}
           {connectedDevice && (
             <ActionButton
               title="Disconnect Module"
@@ -126,6 +174,14 @@ export default function Settings() {
           <VersionDisplay />
         </View>
       </ScrollView>
+      <OtaUpdateModal
+        visible={isOtaModalVisible}
+        status={otaStatus}
+        progress={otaProgress}
+        onClose={() => setIsOtaModalVisible(false)}
+        onAbort={abortOta}
+        colors={colors}
+      />
     </SafeAreaView>
   );
 }
