@@ -9,6 +9,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { Asset } from 'expo-asset';
+import { File } from 'expo-file-system';
+import { Buffer } from 'buffer';
 import { useAuth, useSettings } from "../../context";
 import { BLEContext } from "../../context/BLEContext";
 import { Colors } from "../../constants/Colors";
@@ -17,10 +20,8 @@ import {
   SettingsDropdown,
   SettingsCheckbox,
   ActionButton,
+  OtaUpdateModal,
 } from "../../components";
-
-import * as DocumentPicker from 'expo-document-picker';
-import { Buffer } from 'buffer';
 
 export default function Settings() {
   const theme = "dark";
@@ -30,15 +31,7 @@ export default function Settings() {
   
   // Settings & BLE
   const { autoRefresh, setAutoRefresh, temperatureUnit, setTemperatureUnit } = useSettings();
-  const { 
-    previouslyConnectedDevices, 
-    disconnectFromDevice, 
-    connectedDevice,
-    startOta,
-    otaStatus,
-    otaProgress,
-    isOtaSupported
-  } = React.useContext(BLEContext);
+  const { previouslyConnectedDevices, disconnectFromDevice, connectedDevice } = React.useContext(BLEContext);
 
   const [selectedModuleIndex, setSelectedModuleIndex] = useState(0);
   const [selectedTempUnitIndex, setSelectedTempUnitIndex] = useState(temperatureUnit === 'C' ? 0 : 1);
@@ -46,6 +39,42 @@ export default function Settings() {
   const handleTempUnitChange = (index) => {
     setSelectedTempUnitIndex(index);
     setTemperatureUnit(index === 0 ? 'C' : 'F');
+  };
+
+  const {
+    isOtaSupported,
+    startOta,
+    otaStatus,
+    otaProgress,
+    abortOta,
+  } = React.useContext(BLEContext);
+  const [isOtaModalVisible, setIsOtaModalVisible] = useState(false);
+
+  const handleOtaUpdate = async () => {
+    if (!isOtaSupported) {
+      console.log('OTA is not supported on this device.');
+      return;
+    }
+
+    setIsOtaModalVisible(true);
+    console.log('Starting OTA update process...');
+    // return
+    try {
+      console.log('Loading firmware asset...');
+      const asset = Asset.fromModule(require('../../assets/BLE_Step1.bin'));
+      await asset.downloadAsync();
+      console.log('Firmware asset downloaded to:', asset.localUri);
+
+      console.log('Reading firmware file using the new File API...');
+      const file = new File(asset.localUri);
+      const fileContent = await file.arrayBuffer();
+      const firmware = Buffer.from(fileContent);
+      console.log(`Firmware loaded. Size: ${firmware.length} bytes.`);
+
+      await startOta(firmware);
+    } catch (error) {
+      console.error('OTA update failed:', error);
+    }
   };
 
   const handleLogout = async () => {
@@ -58,27 +87,6 @@ export default function Settings() {
 
   const handleDisconnect = () => {
     disconnectFromDevice();
-  };
-
-  const handleOtaUpdate = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/octet-stream',
-      });
-
-      if (result.type === 'success') {
-        const response = await fetch(result.uri);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          const firmware = Buffer.from(reader.result);
-          startOta(firmware);
-        };
-        reader.readAsArrayBuffer(blob);
-      }
-    } catch (err) {
-      console.log('Error picking document: ', err);
-    }
   };
 
   const moduleOptions = previouslyConnectedDevices.length > 0 
@@ -129,30 +137,6 @@ export default function Settings() {
           />
         </View>
 
-        {connectedDevice && isOtaSupported && (
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            <Text style={[styles.cardTitle, { color: colors.icon }]}>FIRMWARE UPDATE</Text>
-            <ActionButton
-              title="Start OTA Update"
-              icon="cloud-upload-outline"
-              onPress={handleOtaUpdate}
-              colors={colors}
-              disabled={otaStatus === 'starting' || otaStatus === 'in_progress'}
-            />
-            {(otaStatus === 'starting' || otaStatus === 'in_progress') && (
-              <View style={styles.progressContainer}>
-                <Text style={{ color: colors.text }}>{`Status: ${otaStatus}`}</Text>
-                <View style={[styles.progressBar, { backgroundColor: colors.icon }]}>
-                  <View style={[styles.progressFill, { width: `${otaProgress}%`, backgroundColor: colors.tint }]} />
-                </View>
-                <Text style={{ color: colors.text }}>{`${otaProgress}%`}</Text>
-              </View>
-            )}
-            {otaStatus === 'success' && <Text style={{ color: colors.success, marginTop: 10 }}>Update successful!</Text>}
-            {otaStatus === 'error' && <Text style={{ color: colors.danger, marginTop: 10 }}>Update failed. Please try again.</Text>}
-          </View>
-        )}
-
         <View style={styles.actions}>
           <ActionButton
             title="Bluetooth Settings"
@@ -160,6 +144,14 @@ export default function Settings() {
             onPress={() => router.push("/bluetooth")}
             colors={colors}
           />
+          {isOtaSupported && (
+            <ActionButton
+              title="Start OTA Update"
+              icon="cloud-upload-outline"
+              onPress={handleOtaUpdate}
+              colors={colors}
+            />
+          )}
           {connectedDevice && (
             <ActionButton
               title="Disconnect Module"
@@ -182,6 +174,14 @@ export default function Settings() {
           <VersionDisplay />
         </View>
       </ScrollView>
+      <OtaUpdateModal
+        visible={isOtaModalVisible}
+        status={otaStatus}
+        progress={otaProgress}
+        onClose={() => setIsOtaModalVisible(false)}
+        onAbort={abortOta}
+        colors={colors}
+      />
     </SafeAreaView>
   );
 }
@@ -197,7 +197,4 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 12, fontWeight: "700", letterSpacing: 1, marginBottom: 14 },
   actions: { width: "100%", gap: 12 },
   versionContainer: { marginTop: 20, alignItems: "center" },
-  progressContainer: { marginTop: 16, alignItems: 'center' },
-  progressBar: { height: 10, width: '100%', borderRadius: 5, marginTop: 8, marginBottom: 4 },
-  progressFill: { height: '100%', borderRadius: 5 },
 });
