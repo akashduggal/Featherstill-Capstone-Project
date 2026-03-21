@@ -195,10 +195,23 @@ void ble_ota_on_connect(uint16_t conn_handle)
 void ble_ota_on_disconnect(void)
 {
     ESP_LOGI(TAG, "OTA disconnected");
+
     s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
     s_status_notify_enabled = false;
-}
 
+    if (s_ota.in_progress) {
+        ESP_LOGW(TAG, "Disconnect during OTA -> aborting current session");
+
+        if (s_ota.ota_handle != 0) {
+            esp_ota_abort(s_ota.ota_handle);
+            s_ota.ota_handle = 0;
+        }
+
+        ble_ota_set_state(BLE_OTA_STATE_ABORTED);
+        ble_ota_update_last_status("ABORTED:DISCONNECT");
+        ble_ota_reset_session();
+    }
+}
 void ble_ota_on_subscribe(uint16_t attr_handle, uint8_t cur_notify)
 {
     if (attr_handle == ota_status_val_handle) {
@@ -509,8 +522,29 @@ static int ota_control_access_cb(uint16_t conn_handle,
             return 0;
 
         case OTA_CMD_ABORT:
-            ESP_LOGW(TAG, "OTA ABORT not implemented yet");
-            return BLE_ATT_ERR_UNLIKELY;
+            if (!s_ota.in_progress) {
+                ESP_LOGW(TAG, "OTA ABORT received without active session");
+                ble_ota_send_status("ERROR:NO_SESSION");
+                ble_ota_reset_session();
+                return 0;
+            }
+
+            s_ota.abort_requested = true;
+            s_ota.in_progress = false;
+            ble_ota_set_state(BLE_OTA_STATE_ABORTED);
+
+            ESP_LOGI(TAG, "Received OTA ABORT: bytes=%u chunks=%u",
+                    (unsigned)s_ota.bytes_received,
+                    (unsigned)s_ota.chunk_count);
+
+            if (s_ota.ota_handle != 0) {
+                esp_ota_abort(s_ota.ota_handle);
+                s_ota.ota_handle = 0;
+            }
+
+            ble_ota_send_status("ABORTED");
+            ble_ota_reset_session();
+            return 0;
 
         default:
             ESP_LOGW(TAG, "Unknown OTA control cmd: 0x%02X", cmd);
