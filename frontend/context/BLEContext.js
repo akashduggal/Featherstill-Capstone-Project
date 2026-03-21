@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useRef } from 'react';
 import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
+import { insertTelemetry } from "../services/database"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const BLEContext = createContext();
@@ -147,6 +148,14 @@ export const BLEProvider = ({ children }) => {
 
                   if (parsedData) {
                     setTelemetryData(parsedData);
+                    const dbPayload = {
+                      ...parsedData,
+                      ts: parsedData.timestamp_s * 1000 
+                    };
+                    
+                    insertTelemetry(dbPayload);
+                  } else {
+                    console.log('Received raw data (incomplete packet):', packet.toString('hex'));
                   }
                   dataBuffer.current = dataBuffer.current.slice(49);
                 }

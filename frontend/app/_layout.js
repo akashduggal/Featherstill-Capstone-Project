@@ -3,7 +3,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { AuthProvider, BatteryProvider, useAuth, SettingsProvider } from '../context';
 import { BLEProvider } from '../context/BLEContext';
-import { initDB } from '../services/database';
+import { initDB, pruneSyncedTelemetry } from '../services/database';
+import { useTelemetrySync } from '../hooks/useTelemetrySync';
 
 const RootNavigation = () => {
   const { user, loading } = useAuth();
@@ -37,7 +38,10 @@ export default function RootLayout() {
   
   useEffect(() => {
     initDB();
+    pruneSyncedTelemetry();
   }, []);
+
+  useTelemetrySync();
 
   return (
     <AuthProvider>
