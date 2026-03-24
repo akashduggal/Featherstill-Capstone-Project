@@ -30,8 +30,23 @@ const RootNavigation = () => {
       </View>
     );
   }
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+      <Stack.Screen 
+        name="debug" 
+        options={{ 
+          headerShown: true, 
+          title: 'Debug Screen',
+          presentation: 'modal', 
+          headerStyle: { backgroundColor: '#000' },
+          headerTintColor: '#00ff00',
+        }} 
+      />
+    </Stack>
+  );
 };
 
 export default function RootLayout() {
