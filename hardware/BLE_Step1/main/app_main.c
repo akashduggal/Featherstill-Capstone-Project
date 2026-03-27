@@ -8,6 +8,7 @@
 #include "ble_batt_mock.h"
 #include "storage.h"
 #include "battery_log.h"
+#include "boot_id.h"
 
 #include <stdio.h>
 #include <time.h>
@@ -136,6 +137,13 @@ void app_main(void)
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_flash_erase();
         nvs_flash_init();
+    }
+    /* Initialize and persist boot counter in NVS */
+    if (boot_id_init() == ESP_OK) {
+        boot_id_increment_and_persist();
+        ESP_LOGI(TAGT, "Current boot_id=%u", boot_id_get());
+    } else {
+        ESP_LOGW(TAGT, "boot_id init failed");
     }
     storage_init();     // mount first
     log_maybe_wipe_on_format_change();
