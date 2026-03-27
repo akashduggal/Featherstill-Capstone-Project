@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { AuthProvider, BatteryProvider, useAuth, SettingsProvider } from '../context';
+import {
+  AuthProvider,
+  BatteryProvider,
+  useAuth,
+  SettingsProvider,
+} from '../context';
 import { BLEProvider } from '../context/BLEContext';
 import { initDB, pruneSyncedTelemetry } from '../services/database';
 import { useTelemetrySync } from '../hooks/useTelemetrySync';
@@ -26,31 +31,23 @@ const RootNavigation = () => {
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size='large' color='#0000ff' />
       </View>
     );
   }
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name='(auth)' />
+      <Stack.Screen name='(tabs)' />
 
-      <Stack.Screen 
-        name="debug" 
-        options={{ 
-          headerShown: true, 
-          title: 'Debug Screen',
-          presentation: 'modal', 
-          headerStyle: { backgroundColor: '#000' },
-          headerTintColor: '#00ff00',
-        }} 
-      />
+      <Stack.Screen name='debug' 
+      options={{headerShown:true}}/>
+      <Stack.Screen name='sqliteInspector' options={{headerShown:true}}/>
     </Stack>
   );
 };
 
 export default function RootLayout() {
-  
   useEffect(() => {
     initDB();
     pruneSyncedTelemetry();

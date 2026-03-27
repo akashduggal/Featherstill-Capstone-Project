@@ -41,7 +41,7 @@ export const insertTelemetry = (data) => {
 
 export const getTelemetry = () => {
   try {
-    const result = db.getAllSync('SELECT * FROM telemetry ORDER BY id DESC LIMIT 5');
+    const result = db.getAllSync('SELECT * FROM telemetry ORDER BY id DESC LIMIT 50');
     return result;
   } catch (error) {
     console.error("Error fetching telemetry:", error);

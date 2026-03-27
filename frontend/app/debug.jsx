@@ -1,63 +1,93 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Stack, Redirect } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
+import { Stack, Redirect, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../constants/Colors';
 
 export default function DebugScreen() {
+  const router = useRouter();
+  const colorScheme = useColorScheme() ?? 'light';
+  const theme = Colors[colorScheme];
+  const styles = getStyles(theme);
+
   if (!__DEV__) {
     return <Redirect href="/" />;
   }
 
   return (
     <ScrollView style={styles.container}>
-      <Stack.Screen options={{ title: 'Debug Screen', headerBackTitle: 'Back' }} />
-
-      <View style={styles.placeholderCard}>
-        <Text style={styles.placeholderTitle}>SQLite Inspector (#270)</Text>
-        <Text style={styles.body}>Implementation pending...</Text>
+      <Stack.Screen 
+        options={{ 
+          title: 'Developer Menu', 
+          headerStyle: { backgroundColor: theme.background },
+          headerTintColor: theme.text,
+          headerShadowVisible: false,
+        }} 
+      />
+      
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>System Tools</Text>
+        <Text style={styles.headerSub}>Monitor local storage and network activity.</Text>
       </View>
 
+      <View style={styles.menuGroup}>
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => router.push('/sqliteInspector')}
+        >
+          <View style={styles.menuItemLeft}>
+            <Ionicons name="server-outline" size={24} color={theme.info} />
+            <Text style={styles.menuText}>SQLite Telemetry Buffer</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.icon} />
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f0f', 
-    padding: 16,
+    backgroundColor: theme.surface, 
   },
-  headerSection: {
-    marginBottom: 24,
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 16,
   },
-  statusText: {
-    color: '#00ff00',
-    fontSize: 20,
+  headerTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
-    fontFamily: 'Courier',
+    color: theme.text,
   },
-  subText: {
-    color: '#888',
+  headerSub: {
+    fontSize: 14,
+    color: theme.icon,
     marginTop: 4,
   },
-  placeholderCard: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 8,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#444',
-    borderStyle: 'dashed',
+  menuGroup: {
+    backgroundColor: theme.card,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: theme.cardBorder,
   },
-  placeholderTitle: {
-    color: '#fff',
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.cardBorder,
+  },
+  menuItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuText: {
     fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  body: {
-    color: '#666',
+    color: theme.text,
   }
 });
