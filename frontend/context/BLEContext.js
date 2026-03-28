@@ -3,7 +3,8 @@ import { BleManager } from 'react-native-ble-plx';
 import { Buffer } from 'buffer';
 import { insertTelemetry } from "../services/database"
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import {useAuth} from './AuthContext'
+import { formatBmsPayload } from '../utils/commonUtils';
 
 export const BLEContext = createContext();
 
@@ -68,6 +69,7 @@ export const BLEProvider = ({ children }) => {
   const otaResumeInfo = useRef(null); // To store { chunk_count, bytes_received }
   const statusResolver = useRef(null); // For the OTA status promise
   const deviceDisconnectSubscription = useRef(null);
+  const { user } = useAuth();
 
   const cleanupConnectionState = () => {
     if (deviceDisconnectSubscription.current) {
@@ -208,7 +210,9 @@ export const BLEProvider = ({ children }) => {
                   if (parsedData) {
                     setTelemetryData(parsedData);
                     const dbPayload = {
-                      ...parsedData,
+                      email: user?.email ?? "Guest" ,
+                      moduleId: "ESP32",
+                      payload: formatBmsPayload(parsedData),
                       ts: parsedData.timestamp_s * 1000 
                     };
                     
