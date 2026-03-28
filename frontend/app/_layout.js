@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   AuthProvider,
   BatteryProvider,
@@ -15,34 +16,53 @@ const RootNavigation = () => {
   const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
+    const handleRouting = async () => {
+      if (loading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+      const onboarded = (await AsyncStorage.getItem('hasOnboarded')) === 'true';
+      const inAuthGroup = segments[0] === '(auth)';
+      const inOnboarding = segments[0] === 'onboarding';
 
-    if (!user && !inAuthGroup) {
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      router.replace('/(tabs)/dashboard');
-    }
+      if (!isReady) setIsReady(true);
+
+      // New user: show onboarding first
+      if (!onboarded && !inOnboarding) {
+        router.replace('/onboarding');
+        return;
+      }
+
+      // Already onboarded: normal auth flow
+      if (onboarded) {
+        if (inOnboarding) {
+          // Coming back from onboarding after completing it
+          router.replace('/(auth)/login');
+        } else if (!user && !inAuthGroup) {
+          router.replace('/(auth)/login');
+        } else if (user && inAuthGroup) {
+          router.replace('/(tabs)/dashboard');
+        }
+      }
+    };
+    handleRouting();
   }, [user, loading, segments]);
 
-  if (loading) {
+  if (loading || !isReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size='large' color='#0000ff' />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
+        <ActivityIndicator size='large' color='#818CF8' />
       </View>
     );
   }
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name='onboarding' />
       <Stack.Screen name='(auth)' />
       <Stack.Screen name='(tabs)' />
-
-      <Stack.Screen name='debug' 
-      options={{headerShown:true}}/>
-      <Stack.Screen name='sqliteInspector' options={{headerShown:true}}/>
+      <Stack.Screen name='debug' options={{ headerShown: true }} />
+      <Stack.Screen name='sqliteInspector' options={{ headerShown: true }} />
     </Stack>
   );
 };
