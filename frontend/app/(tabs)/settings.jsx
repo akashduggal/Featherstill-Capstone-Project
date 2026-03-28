@@ -104,6 +104,16 @@ export default function Settings() {
         <Text style={[styles.userText, { color: colors.icon }]}>
           User: {isGuest ? "Guest User" : user?.displayName || user?.email || "Unknown"}
         </Text>
+        {__DEV__ && (
+          <View style={{ width: '100%', marginBottom: 16 }}>
+            <ActionButton
+              title="Debug"
+              icon="bug"
+              onPress={() => router.push('/debug')}
+              colors={colors}
+            />
+          </View>
+      )}
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: colors.icon }]}>DEVICE CONFIGURATION</Text>

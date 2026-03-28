@@ -41,7 +41,7 @@ export const insertTelemetry = (data) => {
 
 export const getTelemetry = () => {
   try {
-    const result = db.getAllSync('SELECT * FROM telemetry ORDER BY id DESC LIMIT 5');
+    const result = db.getAllSync('SELECT * FROM telemetry ORDER BY id DESC LIMIT 50');
     return result;
   } catch (error) {
     console.error("Error fetching telemetry:", error);
@@ -121,5 +121,15 @@ export const pruneSyncedTelemetry = () => {
     }
   } catch (error) {
     console.error("Error pruning synced telemetry:", error);
+  }
+};
+
+export const clearAllTelemetry = () => {
+  try {
+    db.execSync('DELETE FROM telemetry');
+    
+    console.log("Database wiped successfully.");
+  } catch (error) {
+    console.error("Error wiping database:", error);
   }
 };
