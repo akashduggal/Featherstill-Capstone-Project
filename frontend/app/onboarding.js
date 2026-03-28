@@ -6,9 +6,11 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -347,11 +349,25 @@ export default function OnboardingScreen() {
   const flatListRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = useState(0);
+  const router = useRouter();
 
   const onViewableItemsChanged = useCallback(({ viewableItems }) => {
     if (viewableItems.length > 0) setCurrentIndex(viewableItems[0].index ?? 0);
   }, []);
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+
+  const completeOnboarding = async () => {
+    await AsyncStorage.setItem('hasOnboarded', 'true');
+    router.replace('/(auth)/login');
+  };
+
+  const goToNext = () => {
+    if (currentIndex < SLIDES.length - 1) {
+      flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
+    }
+  };
+
+  const isLastSlide = currentIndex === SLIDES.length - 1;
 
   const renderSlide = ({ item, index }) => {
     const ir = [(index - 1) * width, index * width, (index + 1) * width];
@@ -396,7 +412,26 @@ export default function OnboardingScreen() {
             );
           })}
         </View>
-        <View style={s.buttonArea} />
+
+        {/* Navigation Buttons */}
+        <View style={s.buttonArea}>
+          {isLastSlide ? (
+            <TouchableOpacity style={s.getStartedBtn} onPress={completeOnboarding} activeOpacity={0.8}>
+              <Text style={s.getStartedText}>Get Started</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </TouchableOpacity>
+          ) : (
+            <View style={s.navRow}>
+              <TouchableOpacity onPress={completeOnboarding} activeOpacity={0.7}>
+                <Text style={s.skipText}>Skip</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.nextBtn} onPress={goToNext} activeOpacity={0.8}>
+                <Text style={s.nextText}>Next</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </SafeAreaView>
     </>
   );
@@ -412,7 +447,13 @@ const s = StyleSheet.create({
   slideSub: { fontSize: 14, fontWeight: '500', color: colors.icon, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   dotRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 16 },
   dot: { height: 8, borderRadius: 4, backgroundColor: colors.accent, marginHorizontal: 4 },
-  buttonArea: { height: 80, paddingHorizontal: 24 },
+  buttonArea: { paddingHorizontal: 24, paddingBottom: 16 },
+  navRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  skipText: { fontSize: 16, fontWeight: '600', color: colors.icon, paddingVertical: 12, paddingHorizontal: 8 },
+  nextBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.accent, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
+  nextText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  getStartedBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.accent, paddingVertical: 14, borderRadius: 12 },
+  getStartedText: { fontSize: 18, fontWeight: '700', color: '#fff' },
 
   /* Phone Frame */
   phoneFrame: { width: PHONE_W, height: PHONE_H, backgroundColor: colors.card, borderRadius: 24, borderWidth: 2, borderColor: colors.cardBorder, overflow: 'hidden' },
