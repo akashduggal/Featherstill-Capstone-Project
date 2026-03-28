@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, useColorSche
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '../constants/Colors';
-import { getTelemetry } from '../services/database';
+import { getTelemetry, insertTelemetry, clearAllTelemetry } from '../services/database';
 
 export default function SQLiteInspectorScreen() {
   const [telemetryData, setTelemetryData] = useState([]);
@@ -56,6 +56,42 @@ export default function SQLiteInspectorScreen() {
     );
   };
 
+  const handleInjectMockData = () => {
+    const mockData = {
+      ts: Date.now(),
+      timestamp_s: Math.floor(Date.now() / 1000),
+      cell_mv: Array.from({ length: 16 }, () => Math.floor(Math.random() * (4200 - 3000) + 3000)),
+      current_ma: Math.floor(Math.random() * 5000), 
+      pack_ld_mv: 52000,
+      pack_sum_active_mv: 52100,
+      pack_total_mv: 52050,
+      soc: Math.floor(Math.random() * 100),
+      temp_int_c_x100: 2500, // 25.00°C
+      temp_ts1_c_x100: 2650  // 26.50°C
+    };
+
+    insertTelemetry(mockData);
+    fetchTelemetry(); 
+  };
+
+  const handleClearStorage = () => {
+    Alert.alert(
+      "Clear Local Buffer",
+      "Are you sure? This will delete all telemetry data.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: () => {
+            clearAllTelemetry(); 
+            fetchTelemetry(); 
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen 
@@ -66,6 +102,18 @@ export default function SQLiteInspectorScreen() {
           headerTintColor: theme.text,
         }} 
       />
+
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.actionButton} onPress={handleInjectMockData}>
+          <Ionicons name="add-circle" size={20} color={theme.accent} />
+          <Text style={[styles.actionText, { color: theme.accent }]}>Inject Mock Data</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButton} onPress={handleClearStorage}>
+          <Ionicons name="trash" size={20} color={theme.error} />
+          <Text style={[styles.actionText, { color: theme.error }]}>Clear Database</Text>
+        </TouchableOpacity>
+      </View>
       
       <View style={styles.toolbar}>
         <Text style={styles.recordCount}>{telemetryData.length} records found</Text>

@@ -123,3 +123,13 @@ export const pruneSyncedTelemetry = () => {
     console.error("Error pruning synced telemetry:", error);
   }
 };
+
+export const clearAllTelemetry = () => {
+  try {
+    db.execSync('DELETE FROM telemetry');
+    
+    console.log("Database wiped successfully.");
+  } catch (error) {
+    console.error("Error wiping database:", error);
+  }
+};
