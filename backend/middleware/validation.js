@@ -36,8 +36,8 @@ const validateBatteryReading = (data) => {
   }
 
   // Validate cellTemperature
-  if (cellTemperature === undefined || typeof cellTemperature !== 'number' || cellTemperature < -50 || cellTemperature > 125) {
-    errors.push('cellTemperature must be a number between -50 and 125');
+  if (cellTemperature === undefined || typeof cellTemperature !== 'number' || cellTemperature < -500 || cellTemperature > 1250) {
+    errors.push('cellTemperature must be a number between -500 and 1250');
   }
 
   // Validate currentAmps
@@ -46,8 +46,8 @@ const validateBatteryReading = (data) => {
   }
 
   // Validate stateOfCharge
-  if (stateOfCharge === undefined || typeof stateOfCharge !== 'number' || stateOfCharge < 0 || stateOfCharge > 100) {
-    errors.push('stateOfCharge must be a number between 0 and 100');
+  if (stateOfCharge === undefined || typeof stateOfCharge !== 'number' || stateOfCharge < 0 || stateOfCharge > 1000) {
+    errors.push('stateOfCharge must be a number between 0 and 1000');
   }
 
   // Validate chargingStatus

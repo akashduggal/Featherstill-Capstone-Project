@@ -1,4 +1,5 @@
 import * as SQLite from 'expo-sqlite';
+import { getApiUrl } from '../config/api';
 
 const db = SQLite.openDatabaseSync('featherstill.db');
 
@@ -75,6 +76,39 @@ export const markAsSynced = (ids) => {
   }
 };
 
+const SYNC_PATH = '/api/battery-readings';
+
+const normalizeUrl = (url) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `http://${url}`;
+};
+
+const toNumber = (v, fallback = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const mapLocalToBackendPayload = (local) => {
+  const p = local?.payload && typeof local.payload === 'object' ? local.payload : {};
+  return {
+    email: (typeof local?.email === 'string' && local.email.includes('@')) ? local.email : 'guest@featherstill.local',
+    batteryId: local?.batteryId || local?.moduleId || 'ESP32',
+    totalBatteryVoltage: toNumber(p.totalBatteryVoltage, 0),
+    cellTemperature: toNumber(p.cellTemperature, 0),
+    currentAmps: toNumber(p.currentAmps, 0),
+    stateOfCharge: toNumber(p.stateOfCharge, 0),
+    chargingStatus: p.chargingStatus || 'INACTIVE',
+    cellVoltages: Array.isArray(p.cellVoltages) ? p.cellVoltages.map((v) => toNumber(v, 0)) : [],
+    nominalVoltage: toNumber(p.nominalVoltage, 51.2),
+    capacityWh: toNumber(p.capacityWh, 5222),
+    minCellVoltage: p.minCellVoltage != null ? toNumber(p.minCellVoltage, null) : null,
+    maxCellVoltage: p.maxCellVoltage != null ? toNumber(p.maxCellVoltage, null) : null,
+    outputVoltage: p.outputVoltage != null ? toNumber(p.outputVoltage, null) : null,
+    timestamp: local?.ts ? new Date(local.ts).toISOString() : new Date().toISOString(),
+    rawPayload: local,
+  };
+};
+
 /**
  * The main orchestrator function to handle the AWS upload.
  */
@@ -82,26 +116,38 @@ export const syncTelemetryToAWS = async () => {
   const unsyncedData = getUnsyncedTelemetry();
   if (unsyncedData.length === 0) return;
 
-  try {
-    // Map the database rows into an array of pure JSON payloads for AWS
-    const payloads = unsyncedData.map(row => JSON.parse(row.payload));
-    const idsToUpdate = unsyncedData.map(row => row.id);
+  const url = normalizeUrl(getApiUrl(SYNC_PATH));
+  if (!url) {
+    console.error('Telemetry sync URL is empty.');
+    return;
+  }
 
-    // TODO: Change url to our backend endpoint
-    const url="";
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ batch: payloads }),
-    });
+  const successfulIds = [];
 
-    if (response.ok) {
-      markAsSynced(idsToUpdate);
-    } else {
-      console.error("AWS sync failed with status:", response.status);
+  for (const row of unsyncedData) {
+    try {
+      const localPayload = JSON.parse(row.payload);
+      const body = mapLocalToBackendPayload(localPayload);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        successfulIds.push(row.id);
+      } else {
+        const errText = await response.text().catch(() => '');
+        console.error(`Sync failed for row ${row.id}:`, response.status, errText);
+      }
+    } catch (error) {
+      console.error(`Sync error for row ${row.id}:`, error);
     }
-  } catch (error) {
-    console.error("Network error during AWS sync:", error);
+  }
+
+  if (successfulIds.length > 0) {
+    markAsSynced(successfulIds);
   }
 };
 
