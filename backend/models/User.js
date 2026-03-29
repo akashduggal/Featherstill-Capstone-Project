@@ -13,27 +13,15 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      lowercase: true,
-      validate: {
-        isEmail: true,
-      },
-    },
-    firebaseUID: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      unique: true,
+      validate: { isEmail: true },
     },
     isGuest: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+    isAdmin: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {

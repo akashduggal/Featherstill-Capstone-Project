@@ -4,6 +4,8 @@ import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts } from '../constants/Colors';
 import { getTelemetry, insertTelemetry, clearAllTelemetry } from '../services/database';
+import { formatBmsPayload } from '../utils/commonUtils';
+import { useAuth } from '../context'
 
 export default function SQLiteInspectorScreen() {
   const [telemetryData, setTelemetryData] = useState([]);
@@ -12,6 +14,8 @@ export default function SQLiteInspectorScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const theme = Colors[colorScheme];
   const styles = getStyles(theme);
+  const { user } = useAuth();
+  
 
   const fetchTelemetry = () => {
     try {
@@ -57,22 +61,31 @@ export default function SQLiteInspectorScreen() {
   };
 
   const handleInjectMockData = () => {
-    const mockData = {
-      ts: Date.now(),
-      timestamp_s: Math.floor(Date.now() / 1000),
-      cell_mv: Array.from({ length: 16 }, () => Math.floor(Math.random() * (4200 - 3000) + 3000)),
-      current_ma: Math.floor(Math.random() * 5000), 
-      pack_ld_mv: 52000,
-      pack_sum_active_mv: 52100,
-      pack_total_mv: 52050,
-      soc: Math.floor(Math.random() * 100),
-      temp_int_c_x100: 2500, // 25.00°C
-      temp_ts1_c_x100: 2650  // 26.50°C
-    };
-
-    insertTelemetry(mockData);
-    fetchTelemetry(); 
+  const rawMockData = {
+    ts: Date.now(),
+    timestamp_s: Math.floor(Date.now() / 1000),
+    cell_mv: Array.from({ length: 16 }, () => Math.floor(Math.random() * (4200 - 3000) + 3000)),
+    current_ma: Math.floor(Math.random() * 5000), 
+    pack_ld_mv: 52000,
+    pack_sum_active_mv: 52100,
+    pack_total_mv: 52050,
+    soc: Math.floor(Math.random() * 100),
+    temp_int_c_x100: 2500, // 25.00°C
+    temp_ts1_c_x100: 2650  // 26.50°C
   };
+
+  const formattedPayload = formatBmsPayload(rawMockData);
+
+  const dbPayload = {
+    email: user?.email ?? "Developer", 
+    moduleId: "MOCK_ESP32", 
+    payload: formattedPayload,
+    ts: rawMockData.timestamp_s * 1000 
+  };
+
+  insertTelemetry(dbPayload);
+  fetchTelemetry(); 
+};
 
   const handleClearStorage = () => {
     Alert.alert(

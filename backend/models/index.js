@@ -15,11 +15,13 @@ Battery.belongsTo(User, {
 
 Battery.hasMany(BatteryReading, {
   foreignKey: 'batteryId',
+  sourceKey: 'id',
   onDelete: 'CASCADE',
 });
 
 BatteryReading.belongsTo(Battery, {
   foreignKey: 'batteryId',
+  targetKey: 'id',
 });
 
 module.exports = {
