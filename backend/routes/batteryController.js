@@ -1,5 +1,4 @@
 const { User, Battery, BatteryReading } = require('../models');
-const { validateBatteryReading } = require('../middleware/validation');
 const { Op } = require('sequelize');
 
 /* Helpers --------------------------------------------------------------- */
@@ -28,29 +27,28 @@ const findOrCreateUser = async (email) => {
   return user;
 };
 
+const getModuleId = (data) => {
+  const raw = data?.moduleId || data?.moduleID || '';
+  return typeof raw === 'string' ? raw.trim() : '';
+};
+
 const resolveOrCreateBattery = async (user, data) => {
-  const identifier = data.batteryId || 'Primary Battery';
+  const moduleId = getModuleId(data);
   let battery = null;
 
-  if (isUuid(identifier)) {
-    battery = await Battery.findOne({ where: { id: identifier, userId: user.id } });
+  if (isUuid(moduleId)) {
+    battery = await Battery.findOne({ where: { id: moduleId, userId: user.id } });
   }
 
   if (!battery) {
-    battery = await Battery.findOne({
-      where: {
-        userId: user.id,
-        [Op.or]: [{ serialNumber: identifier }, { batteryName: identifier }],
-      },
-    });
+    battery = await Battery.findOne({ where: { userId: user.id, moduleId } });
   }
 
   if (!battery) {
     battery = await Battery.create({
       userId: user.id,
-      batteryName: identifier,
-      nominalVoltage: toNumber(data.nominalVoltage, 51.2),
-      capacityWh: toNumber(data.capacityWh, 5222),
+      moduleId,
+      batteryName: data.batteryName || null,
     });
   }
 
@@ -58,7 +56,6 @@ const resolveOrCreateBattery = async (user, data) => {
 };
 
 const buildReadingPayload = (data, batteryId) => ({
-  email: data.email || null,
   batteryId,
   timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
   nominalVoltage: toNumber(data.nominalVoltage, null),
@@ -87,20 +84,20 @@ const postBatteryReading = async (req, res, next) => {
   try {
     const data = req.body;
 
-    // Validate input (expects camelCase fields)
-    const validation = validateBatteryReading(data);
-    if (!validation.isValid) {
-      return res.status(400).json({ success: false, error: 'Validation failed', details: validation.errors });
-    }
-
     const user = await findOrCreateUser(data.email);
     const battery = await resolveOrCreateBattery(user, data);
+
     const created = await BatteryReading.create(buildReadingPayload(data, battery.id));
 
     return res.status(201).json({
       success: true,
       message: 'Battery reading recorded successfully',
-      data: { id: created.id, batteryId: created.batteryId, createdAt: created.createdAt },
+      data: {
+        id: created.id,
+        batteryId: created.batteryId,
+        moduleId: battery.moduleId,
+        createdAt: created.createdAt,
+      },
     });
   } catch (err) {
     if (isDbConnectionError(err)) {

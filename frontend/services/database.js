@@ -92,7 +92,7 @@ const mapLocalToBackendPayload = (local) => {
   const p = local?.payload && typeof local.payload === 'object' ? local.payload : {};
   return {
     email: (typeof local?.email === 'string' && local.email.includes('@')) ? local.email : 'guest@featherstill.local',
-    batteryId: local?.batteryId || local?.moduleId || 'ESP32',
+    moduleId: local?.moduleId || local?.batteryId || 'ESP32',
     totalBatteryVoltage: toNumber(p.totalBatteryVoltage, 0),
     cellTemperature: toNumber(p.cellTemperature, 0),
     currentAmps: toNumber(p.currentAmps, 0),

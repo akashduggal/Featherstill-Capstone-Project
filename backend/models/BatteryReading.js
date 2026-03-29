@@ -14,17 +14,13 @@ const BatteryReading = sequelize.define(
 
     // foreign key to batteries.id stored as text (UUID string) in DB
     batteryId: {
-      type: DataTypes.STRING, // maps cleanly to DB 'text'
+      type: DataTypes.UUID, // maps cleanly to DB 'text'
       allowNull: false,
       field: 'batteryId',
-      // intentionally not declaring `references` because DB column is TEXT, not a UUID FK
-    },
-
-    // who posted the reading (optional)
-    email: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      field: 'email',
+      references: {
+        model: 'batteries',
+        key: 'id',
+      },
     },
 
     // original telemetry timestamp (server or device time)
@@ -113,7 +109,6 @@ const BatteryReading = sequelize.define(
       { fields: ['batteryId'] },
       { fields: ['createdAt'] },
       { fields: ['timestamp'] },
-      { fields: ['email'] },
     ],
   }
 );

@@ -19,39 +19,21 @@ const Battery = sequelize.define(
     },
     batteryName: {
       type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: 'Primary Battery',
+      allowNull: true, // optional
     },
-    serialNumber: {
+    moduleId: {
       type: DataTypes.STRING,
-      allowNull: true,
-    },
-    nominalVoltage: {
-      type: DataTypes.FLOAT,
-      allowNull: true,
-      defaultValue: 51.2,
-    },
-    capacityWh: {
-      type: DataTypes.FLOAT,
-      allowNull: true,
-      defaultValue: 5222,
-    },
-    status: {
-      type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'ERROR'),
-      defaultValue: 'ACTIVE',
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      allowNull: false,
+      field: 'moduleId',
     },
   },
   {
     tableName: 'batteries',
     timestamps: true,
+    indexes: [
+      { fields: ['userId'] },
+      { unique: true, fields: ['userId', 'moduleId'] },
+    ],
   }
 );
 
