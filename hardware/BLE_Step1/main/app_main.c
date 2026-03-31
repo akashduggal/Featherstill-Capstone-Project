@@ -9,6 +9,7 @@
 #include "storage.h"
 #include "battery_log.h"
 #include "boot_id.h"
+#include "seq_local.h"
 
 #include <stdio.h>
 #include <time.h>
@@ -138,6 +139,7 @@ void app_main(void)
         nvs_flash_erase();
         nvs_flash_init();
     }
+<<<<<<< Updated upstream
     /* Initialize and persist boot counter in NVS */
     if (boot_id_init() == ESP_OK) {
         boot_id_increment_and_persist();
@@ -145,6 +147,21 @@ void app_main(void)
     } else {
         ESP_LOGW(TAGT, "boot_id init failed");
     }
+=======
+
+    /* Initialize boot counter in NVS and increment */
+    if (boot_id_init() == ESP_OK) {
+        boot_id_increment_and_persist();
+        uint32_t bid = boot_id_get();
+        ESP_LOGI(TAGT, "Current boot_id=%" PRIu32, bid);
+        
+        /* Initialize seq_local with current boot_id */
+        seq_local_init(bid);
+    } else {
+        ESP_LOGW(TAGT, "boot_id init failed");
+    }
+
+>>>>>>> Stashed changes
     storage_init();     // mount first
     log_maybe_wipe_on_format_change();
     battery_log_seq_init();

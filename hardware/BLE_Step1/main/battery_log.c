@@ -10,6 +10,7 @@
 #include <unistd.h>   
 #include "nvs.h"
 #include <fcntl.h>
+#include "seq_local.h"
 
 #define NVS_NS_LOG            "blog"
 #define NVS_KEY_LOG_VER       "log_ver"
@@ -113,13 +114,10 @@ static void seq_checkpoint_delete(void)
 
 uint32_t battery_log_next_seq(void)
 {
-    uint32_t assigned = g_seq_next++;
+    /* Return local sequence for this boot via seq_local module */
+    uint32_t assigned = seq_local_next();
     
-    ESP_LOGI(TAG, "Assigned seq = %" PRIu32, assigned);
-
-    if ((g_seq_next % SEQ_CHECKPOINT_EVERY_N) == 0) {
-        seq_checkpoint_save(g_seq_next);
-    }
+    ESP_LOGI(TAG, "Assigned seq_local = %" PRIu32, assigned);
 
     return assigned;
 }
