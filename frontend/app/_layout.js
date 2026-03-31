@@ -8,9 +8,11 @@ import {
   useAuth,
   SettingsProvider,
 } from '../context';
+import { toastConfig } from '../components';
 import { BLEProvider } from '../context/BLEContext';
 import { initDB, pruneSyncedTelemetry } from '../services/database';
 import { useTelemetrySync } from '../hooks/useTelemetrySync';
+import Toast from 'react-native-toast-message';
 
 const RootNavigation = () => {
   const { user, loading } = useAuth();
@@ -76,14 +78,17 @@ export default function RootLayout() {
   useTelemetrySync();
 
   return (
-    <AuthProvider>
-      <SettingsProvider>
-        <BatteryProvider>
-          <BLEProvider>
-            <RootNavigation />
-          </BLEProvider>
-        </BatteryProvider>
-      </SettingsProvider>
-    </AuthProvider>
+    <View style={{ flex: 1 }}>
+      <AuthProvider>
+        <SettingsProvider>
+          <BatteryProvider>
+            <BLEProvider>
+              <RootNavigation />
+            </BLEProvider>
+          </BatteryProvider>
+        </SettingsProvider>
+      </AuthProvider>
+      <Toast config={toastConfig} />
+    </View>
   );
 }
