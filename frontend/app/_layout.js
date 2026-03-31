@@ -19,6 +19,15 @@ const RootNavigation = () => {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    // Only initialize the logger in development mode
+    if (__DEV__) {
+      const { startNetworkLogging } = require('react-native-network-logger');
+      startNetworkLogging();
+      console.log('Network Logger initialized.');
+    }
+  }, []);
+
+  useEffect(() => {
     const handleRouting = async () => {
       if (loading) return;
 
