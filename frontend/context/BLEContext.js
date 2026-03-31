@@ -68,13 +68,19 @@ export const BLEProvider = ({ children }) => {
   const otaRebootExpected = useRef(false);
   const otaResumeInfo = useRef(null); // To store { chunk_count, bytes_received }
   const statusResolver = useRef(null); // For the OTA status promise
+  const otaAbortRequested = useRef(false);
   const deviceDisconnectSubscription = useRef(null);
   const { user } = useAuth();
+  const otaStatusMonitorSubscription = useRef(null);
 
   const cleanupConnectionState = () => {
     if (deviceDisconnectSubscription.current) {
       deviceDisconnectSubscription.current.remove();
       deviceDisconnectSubscription.current = null;
+    }
+    if (otaStatusMonitorSubscription.current) {
+      otaStatusMonitorSubscription.current.remove();
+      otaStatusMonitorSubscription.current = null;
     }
     setConnectedDevice(null);
     setTelemetryData(null);
@@ -229,12 +235,14 @@ export const BLEProvider = ({ children }) => {
       }
 
       if (otaServiceFound && otaCharacteristics.current.control && otaCharacteristics.current.data && otaCharacteristics.current.status) {
-        // Subscribe to notifications
-        otaCharacteristics.current.status.monitor((error, characteristic) => {
+        if (otaStatusMonitorSubscription.current) {
+          otaStatusMonitorSubscription.current.remove();
+        }
+        otaStatusMonitorSubscription.current = otaCharacteristics.current.status.monitor((error, characteristic) => {
           // This is the main handler for all status updates during the OTA process
           if (error) {
-            if (otaRebootExpected.current && error.message.includes('Operation was cancelled')) {
-              console.log('[OTA] Status monitor gracefully disconnected post-update as expected.');
+            if (error.message.includes('Operation was cancelled')) {
+              console.log('[OTA] Status monitor operation was cancelled, likely due to device disconnect.');
             } else {
               console.error('[OTA] Status monitor error:', error);
             }
@@ -299,6 +307,7 @@ export const BLEProvider = ({ children }) => {
 
     const firmwareSize = firmware.length;
     console.log(`[OTA] Starting update. Firmware size: ${firmwareSize} bytes.`);
+    otaAbortRequested.current = false;
     setOtaStatus('starting');
     setOtaProgress(0);
 
@@ -312,10 +321,16 @@ export const BLEProvider = ({ children }) => {
 
         statusResolver.current = {
           resolve: (status) => {
-            if (predicate(status)) {
+            try {
+              if (predicate(status)) {
+                clearTimeout(timeoutId);
+                statusResolver.current = null;
+                resolve(status);
+              }
+            } catch (e) {
               clearTimeout(timeoutId);
               statusResolver.current = null;
-              resolve(status);
+              reject(e);
             }
           },
         };
@@ -387,18 +402,24 @@ export const BLEProvider = ({ children }) => {
       otaRebootExpected.current = true;
 
     } catch (error) {
-      console.error(`[OTA] Fatal error during OTA process: ${error.message}`);
-      setOtaStatus('error');
-      // Don't send ABORT if the error came from the device itself
-      if (!error.message.startsWith('ERROR:')) {
-        await abortOta();
+      if (otaAbortRequested.current) {
+        console.log('[OTA] OTA process gracefully stopped after user abort.');
+        setOtaStatus('idle');
+      } else {
+        console.error(`[OTA] Fatal error during OTA process: ${error.message}`);
+        setOtaStatus('error');
+        // Don't send ABORT if the error came from the device itself
+        if (!error.message.startsWith('ERROR:')) {
+          await abortOta();
+        }
       }
     }
   };
 
   const abortOta = async () => {
     console.log('[OTA] User requested to abort OTA process.');
-    setOtaStatus('error'); // Set status to error to show the close button
+    otaAbortRequested.current = true;
+    setOtaStatus('idle');
 
     if (otaCharacteristics.current.control) {
       try {

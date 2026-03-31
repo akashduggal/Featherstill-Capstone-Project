@@ -20,6 +20,7 @@
     "buffer": "^6.0.3",
     "crypto-js": "^4.2.0",
     "expo": "~54.0.33",
+    "expo-blur": "^55.0.10",
     "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
@@ -35,7 +36,8 @@
     "react-native-ble-plx": "^3.5.1",
     "react-native-reanimated": "^4.2.1",
     "react-native-safe-area-context": "^5.6.2",
-    "react-native-screens": "4.16.0"
+    "react-native-screens": "4.16.0",
+    "react-native-toast-message": "^2.3.3"
   },
   "private": true,
   "devDependencies": {
