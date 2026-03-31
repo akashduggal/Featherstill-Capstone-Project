@@ -1,6 +1,6 @@
 {
   "expo": {
-    "owner": "spurohi9",
+    "owner": "fetherstill",
     "name": "fetherstill",
     "slug": "fetherstill",
     "version": "1.0.0",
@@ -43,7 +43,12 @@
       "edgeToEdgeEnabled": true,
       "package": "com.fetherstill.app",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -51,7 +56,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "f2dbb045-363b-4265-b451-d0652be1b172"
+        "projectId": "453d94d5-285f-408c-8a98-522d3767fb3b"
       }
     }
   }
