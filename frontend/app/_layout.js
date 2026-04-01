@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SplashScreen from 'expo-splash-screen';
+import AnimatedSplash from '../components/AnimatedSplash';
 import {
   AuthProvider,
   BatteryProvider,
   useAuth,
   SettingsProvider,
 } from '../context';
-import { toastConfig } from '../components';
 import { BLEProvider } from '../context/BLEContext';
 import { initDB, pruneSyncedTelemetry } from '../services/database';
 import { useTelemetrySync } from '../hooks/useTelemetrySync';
 import Toast from 'react-native-toast-message';
+import { toastConfig } from '../components/ToastConfig';
 
-const RootNavigation = () => {
+// Prevent the native static splash screen from hiding automatically immediately on boot
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+const RootNavigation = ({ setAppReady }) => {
   const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -28,7 +33,11 @@ const RootNavigation = () => {
       const inAuthGroup = segments[0] === '(auth)';
       const inOnboarding = segments[0] === 'onboarding';
 
-      if (!isReady) setIsReady(true);
+      if (!isReady) {
+        setIsReady(true);
+        // Inform RootLayout that routing determines where to go, safe to fade out splash
+        setAppReady(true);
+      }
 
       // New user: show onboarding first
       if (!onboarded && !inOnboarding) {
@@ -49,15 +58,8 @@ const RootNavigation = () => {
       }
     };
     handleRouting();
-  }, [user, loading, segments]);
+  }, [user, loading, segments, isReady, setAppReady, router]);
 
-  if (loading || !isReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
-        <ActivityIndicator size='large' color='#818CF8' />
-      </View>
-    );
-  }
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name='onboarding' />
@@ -70,7 +72,11 @@ const RootNavigation = () => {
 };
 
 export default function RootLayout() {
+  const [appReady, setAppReady] = useState(false);
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
+
   useEffect(() => {
+    // Database initialization happens exactly once during the splash hold
     initDB();
     pruneSyncedTelemetry();
   }, []);
@@ -83,11 +89,23 @@ export default function RootLayout() {
         <SettingsProvider>
           <BatteryProvider>
             <BLEProvider>
-              <RootNavigation />
+              <RootNavigation setAppReady={setAppReady} />
             </BLEProvider>
           </BatteryProvider>
         </SettingsProvider>
       </AuthProvider>
+      
+      {/* 
+        AnimatedSplash is an absolute fill view over the root navigation,
+        making the transition perfectly smooth. Once animation finishes, we stop rendering it. 
+      */}
+      {!splashAnimationDone && (
+        <AnimatedSplash 
+          isAppReady={appReady} 
+          onFinish={() => setSplashAnimationDone(true)} 
+        />
+      )}
+      
       <Toast config={toastConfig} />
     </View>
   );
