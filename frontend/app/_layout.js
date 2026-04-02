@@ -60,6 +60,12 @@ const RootNavigation = ({ setAppReady }) => {
     handleRouting();
   }, [user, loading, segments, isReady, setAppReady, router]);
 
+  // Prevent routing race conditions by not rendering the Stack until auth/onboarding states are resolved.
+  // The AnimatedSplash natively covers this blank view anyway, allowing for seamless transition.
+  if (loading || !isReady) {
+    return <View style={{ flex: 1, backgroundColor: '#0F172A' }} />;
+  }
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name='onboarding' />
