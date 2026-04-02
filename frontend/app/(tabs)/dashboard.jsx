@@ -14,13 +14,35 @@ import {
   StatTile,
   CellVoltage,
   ThermometerIcon,
-  CellImbalanceWarning,
+  TelemetryAlertBanner,
   Button,
 } from "../../components";
 import { BluetoothConnectionUI } from "../../components/BluetoothConnectionUI";
 import { BLEContext } from "../../context/BLEContext";
 import { useSettings } from "../../context/SettingsContext";
 import { postBatteryReading, testConnectivity } from "../../services/batteryApi";
+
+/* ============================================================
+   TELEMETRY VALIDATION THRESHOLDS (PLACEHOLDERS)
+   These values determine when to show warning/error banners 
+   on the dashboard. Adjust these limits as hardware testing 
+   progresses.
+============================================================ */
+const THRESHOLDS = {
+  // Temperature (°C)
+  TEMP_MAX: 45, // Show error if cell temperature exceeds 45°C
+  TEMP_MIN: 0,  // Show warning if cell temperature drops below 0°C
+  
+  // State of Charge (%)
+  SOC_WARNING_MIN: 15, // Show warning if battery level drops below 15%
+  
+  // Cell Voltage (V)
+  CELL_V_MAX: 4.2, // Overvoltage error threshold
+  CELL_V_MIN: 3.0, // Deep discharge warning threshold
+  
+  // Cell Imbalance (V)
+  IMBALANCE_MAX: 0.2, // Show warning if (max cell V - min cell V) > 0.2V
+};
 
 export default function Dashboard() {
   const theme = "dark";
@@ -154,6 +176,61 @@ export default function Dashboard() {
   const displayTemp = temperatureUnit === 'F' ? (d.cellTemperature * 9 / 5) + 32 : d.cellTemperature;
   const tempString = temperatureUnit === 'F' ? `${displayTemp.toFixed(1)} °F` : `${displayTemp.toFixed(1)} °C`;
 
+  // === DYNAMIC VALIDATION & ALERT GENERATION ===
+  const activeAlerts = [];
+
+  if (d.cellTemperature > THRESHOLDS.TEMP_MAX) {
+    activeAlerts.push({
+      id: 'temp-high',
+      level: 'error',
+      title: 'Temperature Too High',
+      detail: `Battery is too hot (${tempString}). Please cool down immediately.`
+    });
+  } else if (d.cellTemperature < THRESHOLDS.TEMP_MIN) {
+    activeAlerts.push({
+      id: 'temp-low',
+      level: 'warning',
+      title: 'Temperature Too Low',
+      detail: `Battery is too cold (${tempString}). Warming up recommended.`
+    });
+  }
+
+  if (d.stateOfCharge <= THRESHOLDS.SOC_WARNING_MIN) {
+     activeAlerts.push({
+        id: 'soc-low',
+        level: 'warning',
+        title: 'Low Battery',
+        detail: `State of Charge is at ${d.stateOfCharge}%. Please recharge soon.`
+     });
+  }
+
+  if (maxV > THRESHOLDS.CELL_V_MAX) {
+     activeAlerts.push({
+        id: 'cell-overvoltage',
+        level: 'error',
+        title: 'Cell Overvoltage Detected',
+        detail: `A cell reached ${maxV.toFixed(3)} V (Limit: ${THRESHOLDS.CELL_V_MAX} V).`
+     });
+  }
+  
+  if (minV < THRESHOLDS.CELL_V_MIN) {
+     activeAlerts.push({
+        id: 'cell-undervoltage',
+        level: 'warning',
+        title: 'Cell Undervoltage Detected',
+        detail: `A cell dropped to ${minV.toFixed(3)} V (Limit: ${THRESHOLDS.CELL_V_MIN} V).`
+     });
+  }
+
+  if (voltageDelta > THRESHOLDS.IMBALANCE_MAX) {
+      activeAlerts.push({
+          id: 'imbalance',
+          level: 'warning',
+          title: 'Cell Imbalance Detected',
+          detail: `Voltage difference: ${voltageDelta.toFixed(3)} V (Threshold: ${THRESHOLDS.IMBALANCE_MAX} V).`
+      });
+  }
+
   return (
     <SafeAreaView
       edges={['top', 'left', 'right']}
@@ -223,7 +300,20 @@ export default function Dashboard() {
           </View>
         </View>
 
-        <CellImbalanceWarning delta={voltageDelta} threshold={0.2} colors={colors} />
+        {/* --- Dynamic Validation Alerts Section --- */}
+        {activeAlerts.length > 0 && (
+          <View style={{ width: '100%', marginBottom: 16 }}>
+            {activeAlerts.map(alert => (
+              <TelemetryAlertBanner 
+                key={alert.id}
+                title={alert.title}
+                detail={alert.detail}
+                level={alert.level}
+                colors={colors}
+              />
+            ))}
+          </View>
+        )}
 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Cells Voltages</Text>
 
