@@ -18,6 +18,24 @@ const validateVersion = (version) => {
   return true;
 };
 
+/**
+ * Compare two semantic versions.
+ * Returns 1 if a > b, -1 if a < b, 0 if equal.
+ */
+const compareSemver = (a, b) => {
+  const parse = (version) => version.split('.').map((n) => Number(n));
+  const aParts = parse(a);
+  const bParts = parse(b);
+
+  for (let i = 0; i < Math.max(aParts.length, bParts.length); i += 1) {
+    const aVal = aParts[i] || 0;
+    const bVal = bParts[i] || 0;
+    if (aVal > bVal) return 1;
+    if (aVal < bVal) return -1;
+  }
+  return 0;
+};
+
 const generateFileHash = (filePath) => {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
@@ -188,6 +206,56 @@ exports.downloadFirmware = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to download firmware',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/firmware/latest
+ * Get metadata for the latest firmware version (by semver, prefers active releases)
+ */
+exports.getLatestFirmware = async (req, res) => {
+  try {
+    let firmwares = await Firmware.findAll({ where: { is_active: true } });
+
+    if (!firmwares || firmwares.length === 0) {
+      firmwares = await Firmware.findAll();
+    }
+
+    if (!firmwares || firmwares.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No firmware versions available',
+      });
+    }
+
+    const latest = firmwares.reduce((current, next) => {
+      if (compareSemver(next.version, current.version) > 0) {
+        return next;
+      }
+      return current;
+    }, firmwares[0]);
+
+    return res.status(200).json({
+      success: true,
+      firmware: {
+        id: latest.id,
+        version: latest.version,
+        filename: latest.filename,
+        file_hash: latest.file_hash,
+        file_size: latest.file_size,
+        changelog: latest.changelog,
+        is_active: latest.is_active,
+        created_at: latest.created_at,
+      },
+      download_url: `${req.protocol}://${req.get('host')}/api/firmware/${latest.version}/download`,
+    });
+  } catch (error) {
+    console.error('Error fetching latest firmware:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch latest firmware',
       message: error.message,
     });
   }
