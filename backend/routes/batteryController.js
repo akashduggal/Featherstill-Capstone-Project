@@ -1,5 +1,6 @@
 const { User, Battery, BatteryReading } = require('../models');
 const { Op } = require('sequelize');
+const admin = require('firebase-admin');
 
 /* Helpers --------------------------------------------------------------- */
 // simple numeric coercion helper
@@ -33,6 +34,56 @@ const getModuleId = (data) => {
   return typeof raw === 'string' ? raw.trim() || 'ESP32' : 'ESP32';
 };
 
+const initFirebaseAdmin = () => {
+  if (admin.apps.length) return;
+
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
+  }
+
+  const serviceAccount = JSON.parse(raw);
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+};
+
+const extractBearerToken = (req) => {
+  const auth = req.headers?.authorization || '';
+  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return '';
+};
+
+const resolveUserFromFirebaseToken = async (firebaseToken) => {
+  if (!firebaseToken || typeof firebaseToken !== 'string') {
+    const err = new Error('Missing firebaseToken');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  initFirebaseAdmin();
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(firebaseToken);
+  } catch (e) {
+    const err = new Error('Invalid firebase token');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const userRecord = await admin.auth().getUser(decoded.uid);
+  const resolvedEmail = userRecord.email || decoded.email;
+
+  if (!resolvedEmail) {
+    const err = new Error('Firebase user has no email mapped');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return findOrCreateUser(resolvedEmail);
+};
+
 const normalizeIncomingItem = (item) => {
   const p = item?.payload && typeof item.payload === 'object' ? item.payload : item;
   return {
@@ -53,6 +104,7 @@ const normalizeIncomingItem = (item) => {
     chargingStatus: p?.chargingStatus,
     cellVoltages: p?.cellVoltages,
     rawPayload: item,
+    firebaseToken: item?.firebaseToken || null,
   };
 };
 
@@ -98,9 +150,10 @@ const buildReadingPayload = (data, batteryId) => ({
   rawPayload: data || null,
 });
 
-const createReading = async (rawItem) => {
+const createReading = async (rawItem, requestToken) => {
   const data = normalizeIncomingItem(rawItem);
-  const user = await findOrCreateUser(data.email);
+  const tokenToUse = data.firebaseToken || requestToken;
+  const user = await resolveUserFromFirebaseToken(tokenToUse);
   const battery = await resolveOrCreateBattery(user, data);
   const created = await BatteryReading.create(buildReadingPayload(data, battery.id));
   return { created, battery, localId: data.localId };
@@ -116,6 +169,7 @@ const postBatteryReading = async (req, res, next) => {
   try {
     const isBatch = Array.isArray(req.body?.batch);
     const items = isBatch ? req.body.batch : [req.body];
+    const requestToken = extractBearerToken(req) || req.body?.firebaseToken || null;
 
     if (!items.length) {
       return res.status(400).json({ success: false, error: 'Empty batch payload' });
@@ -130,13 +184,19 @@ const postBatteryReading = async (req, res, next) => {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       try {
-        const { created, battery, localId } = await createReading(item);
+        const { created, battery, localId } = await createReading(item, requestToken);
         createdCount += 1;
         lastCreated = created;
         lastBattery = battery;
         if (Number.isInteger(localId)) successLocalIds.push(localId);
       } catch (err) {
-        failures.push({ index: i, localId: item?.localId ?? null, error: err.message || 'Failed to insert row' });
+        const statusCode = err?.statusCode || 400;
+        failures.push({
+          index: i,
+          localId: item?.localId ?? null,
+          statusCode,
+          error: err.message || 'Failed to insert row',
+        });
       }
     }
 
