@@ -55,14 +55,14 @@ static void mock_sender_task(void *arg)
             backlog_request_t req = ble_backlog_get_request();
             int start_idx = 0;
 
-            if (req.mode == BACKLOG_MODE_FROM_SEQ) {
-                start_idx = battery_log_find_start_index_by_seq(req.start_seq);
+            if (req.mode == BACKLOG_MODE_FROM_BOOT_SEQ) {
+                start_idx = battery_log_find_start_index_by_boot_seq(req.boot_id, req.seq_local);
             } else {
                 start_idx = 0;
             }
 
-            printf("BACKLOG: start count=%d start_idx=%d mode=%d start_seq=%u\n",
-                count, start_idx, (int)req.mode, (unsigned)req.start_seq);
+            printf("BACKLOG: start count=%d start_idx=%d mode=%d boot_id=%" PRIu32 " seq_local=%" PRIu32 "\n",
+                count, start_idx, (int)req.mode, req.boot_id, req.seq_local);
 
             if (start_idx >= count) {
                 printf("BACKLOG: nothing to send (start_idx=%d count=%d)\n", start_idx, count);

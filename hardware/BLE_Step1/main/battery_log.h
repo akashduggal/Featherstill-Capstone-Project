@@ -64,4 +64,18 @@ esp_err_t log_maybe_wipe_on_format_change(void);
 
 uint32_t battery_log_next_seq(void);
 esp_err_t battery_log_seq_init(void);
+
+/**
+ * @brief Find the index of first record with (boot_id, seq_local) >= (target_boot_id, target_seq_local)
+ *        for resuming backlog within the same boot or from a specific boot.
+ *
+ * @param target_boot_id    boot_id to search for (or 0 if at end of last boot + 1)
+ * @param target_seq_local  seq_local within the boot (or 0 if end of boot)
+ * @return 0-based index of the first matching record, or count() if not found.
+ */
+int battery_log_find_start_index_by_boot_seq(uint32_t target_boot_id, uint32_t target_seq_local);
+
+/**
+ * @deprecated Use battery_log_find_start_index_by_boot_seq instead.
+ */
 int battery_log_find_start_index_by_seq(uint32_t start_seq);

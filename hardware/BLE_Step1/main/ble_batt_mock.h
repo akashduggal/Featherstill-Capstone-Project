@@ -2,14 +2,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "battery_log.h"
+
 typedef enum {
     BACKLOG_MODE_FULL = 0,
-    BACKLOG_MODE_FROM_SEQ = 1,
+    BACKLOG_MODE_FROM_BOOT_SEQ = 1,  // Resume from (boot_id, seq_local) tuple
 } backlog_mode_t;
 
 typedef struct {
     backlog_mode_t mode;
-    uint32_t start_seq;
+    uint32_t boot_id;       // Boot ID for resume
+    uint32_t seq_local;     // Local sequence for resume
 } backlog_request_t;
 
 backlog_request_t ble_backlog_get_request(void);

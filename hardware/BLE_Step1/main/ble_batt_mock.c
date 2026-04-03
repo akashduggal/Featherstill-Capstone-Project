@@ -85,7 +85,7 @@ static int16_t rand_i16(int16_t min, int16_t max)
     return (int16_t)(min + (int32_t)(esp_random() % (uint32_t)(max - min + 1)));
 }
 static void build_mock(battery_log_t *r)
-{
+{   
     memset(r, 0, sizeof(*r));
 
     r->timestamp_s = (uint32_t)(esp_timer_get_time() / 1000000ULL);
@@ -181,33 +181,34 @@ static int cmd_access_cb(uint16_t conn_handle, uint16_t attr_handle,
     if (len == 1) {
         ble_backlog_clear_abort();
         s_backlog_req.mode = BACKLOG_MODE_FULL;
-        s_backlog_req.start_seq = 0;
+        s_backlog_req.boot_id = 0;
+        s_backlog_req.seq_local = 0;
         s_backlog_requested = true;
-
 
         ESP_LOGI(TAG, "Backlog requested: FULL (CMD=0x01, len=1)");
         return 0;
     }
 
-    // New: [01][u32 start_seq LE] => len == 5
-    if (len == 5) {
+    // New: [01][u32 boot_id LE][u32 seq_local LE] => len == 9
+    if (len == 9) {
         ble_backlog_clear_abort();
-        uint8_t buf[5] = {0};
-        rc = os_mbuf_copydata(ctxt->om, 0, 5, buf);
+        uint8_t buf[9] = {0};
+        rc = os_mbuf_copydata(ctxt->om, 0, 9, buf);
         if (rc != 0) {
             return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
         }
 
-        s_backlog_req.mode = BACKLOG_MODE_FROM_SEQ;
-        s_backlog_req.start_seq = u32_le(&buf[1]);
+        s_backlog_req.mode = BACKLOG_MODE_FROM_BOOT_SEQ;
+        s_backlog_req.boot_id = u32_le(&buf[1]);
+        s_backlog_req.seq_local = u32_le(&buf[5]);
         s_backlog_requested = true;
 
-        ESP_LOGI(TAG, "Backlog requested: FROM_SEQ start_seq=%u (CMD=0x01, len=5)",
-                 (unsigned)s_backlog_req.start_seq);
+        ESP_LOGI(TAG, "Backlog requested: FROM_BOOT_SEQ boot_id=%" PRIu32 " seq_local=%" PRIu32 " (CMD=0x01, len=9)",
+                 (unsigned)s_backlog_req.boot_id, (unsigned)s_backlog_req.seq_local);
         return 0;
     }
 
-    ESP_LOGW(TAG, "Backlog CMD=0x01 invalid len=%u (expected 1 or 5)", (unsigned)len);
+    ESP_LOGW(TAG, "Backlog CMD=0x01 invalid len=%u (expected 1 or 9)", (unsigned)len);
     return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
 }
 

@@ -254,3 +254,68 @@ int battery_log_find_start_index_by_seq(uint32_t start_seq)
     fclose(f);
     return lo; 
 }
+
+int battery_log_find_start_index_by_boot_seq(uint32_t target_boot_id, uint32_t target_seq_local)
+{
+    int count = battery_log_count();
+    if (count <= 0) return 0;
+
+    FILE *f = fopen(LOG_FILE, "rb");
+    if (!f) {
+        ESP_LOGE(TAG, "Failed to open %s for boot_seq search: errno=%d (%s)",
+                 LOG_FILE, errno, strerror(errno));
+        return 0; 
+    }
+
+    int lo = 0;
+    int hi = count;  
+
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+
+        off_t offset = (off_t)mid * (off_t)sizeof(battery_log_t);
+        if (fseeko(f, offset, SEEK_SET) != 0) {
+            ESP_LOGE(TAG, "fseeko failed mid=%d offset=%" PRIiMAX " errno=%d (%s)",
+                     mid, (intmax_t)offset, errno, strerror(errno));
+            fclose(f);
+            return 0;
+        }
+
+        battery_log_t rec;
+        size_t nr = fread(&rec, 1, sizeof(rec), f);
+        if (nr != sizeof(rec)) {
+            ESP_LOGE(TAG, "fread failed mid=%d got=%u want=%u errno=%d (%s)",
+                     mid, (unsigned)nr, (unsigned)sizeof(rec), errno, strerror(errno));
+            fclose(f);
+            return 0;
+        }
+
+        /* Compare tuples (boot_id, seq_local) */
+        int cmp = 0;
+        if (rec.boot_id < target_boot_id) {
+            cmp = -1;
+        } else if (rec.boot_id > target_boot_id) {
+            cmp = 1;
+        } else {
+            /* Same boot_id, compare seq_local */
+            if (rec.seq_local < target_seq_local) {
+                cmp = -1;
+            } else if (rec.seq_local > target_seq_local) {
+                cmp = 1;
+            } else {
+                cmp = 0;
+            }
+        }
+
+        if (cmp < 0) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+
+    fclose(f);
+    ESP_LOGI(TAG, "Found start index=%d for boot_id=%" PRIu32 " seq_local=%" PRIu32, 
+             lo, target_boot_id, target_seq_local);
+    return lo; 
+}
