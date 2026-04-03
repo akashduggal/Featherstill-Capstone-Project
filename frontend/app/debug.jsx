@@ -41,6 +41,16 @@ export default function DebugScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.icon} />
         </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.menuItem} 
+          onPress={() => router.push('/networkLogger')}
+        >
+          <View style={styles.menuItemLeft}>
+            <Ionicons name="pulse-outline" size={24} color={theme.accent} />
+            <Text style={styles.menuText}>Network Activity Logger</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.icon} />
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );

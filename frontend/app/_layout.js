@@ -25,6 +25,18 @@ const RootNavigation = ({ setAppReady }) => {
   const router = useRouter();
   const [isReady, setIsReady] = useState(false);
 
+  useTelemetrySync();
+
+
+  useEffect(() => {
+    // Only initialize the logger in development mode
+    if (__DEV__) {
+      const { startNetworkLogging } = require('react-native-network-logger');
+      startNetworkLogging();
+      console.log('Network Logger initialized.');
+    }
+  }, []);
+
   useEffect(() => {
     const handleRouting = async () => {
       if (loading) return;
@@ -67,6 +79,7 @@ const RootNavigation = ({ setAppReady }) => {
       <Stack.Screen name='(tabs)' />
       <Stack.Screen name='debug' options={{ headerShown: true }} />
       <Stack.Screen name='sqliteInspector' options={{ headerShown: true }} />
+      <Stack.Screen name='networkLogger' options={{ headerShown: true }} />
     </Stack>
   );
 };
@@ -81,7 +94,6 @@ export default function RootLayout() {
     pruneSyncedTelemetry();
   }, []);
 
-  useTelemetrySync();
 
   return (
     <View style={{ flex: 1 }}>

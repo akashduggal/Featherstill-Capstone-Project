@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { getApiUrl } from '../config/api';
+import { makePostRequest } from './networkManager';
 
 const db = SQLite.openDatabaseSync('featherstill.db');
 
@@ -129,11 +130,7 @@ export const syncTelemetryToAWS = async () => {
       const localPayload = JSON.parse(row.payload);
       const body = mapLocalToBackendPayload(localPayload);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const response = await makePostRequest(url, body);
 
       if (response.ok) {
         successfulIds.push(row.id);

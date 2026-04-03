@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { syncTelemetryToAWS } from '../services/database';
+import { useAuth } from '../context/AuthContext';
 /**
  * A hook to automatically sync local SQLite telemetry to AWS on a fixed interval.
  * @param {number} intervalMs - How often to trigger the sync (default: 60 seconds)
@@ -10,7 +11,8 @@ const FOREGROUND_INTERVAL = 60000
 export function useTelemetrySync(intervalMs = FOREGROUND_INTERVAL) {
   const isSyncing = useRef(false);
   const appState = useRef(AppState.currentState);
-
+  const { user } = useAuth();
+  
   // Helper function to handle the actual sync logic safely
   const triggerSync = async (triggerSource) => {
     if (isSyncing.current) {
@@ -28,21 +30,20 @@ export function useTelemetrySync(intervalMs = FOREGROUND_INTERVAL) {
     }
   };
 
-  //ForeGround Interval Timer
   useEffect(() => {
+    if (!user) {
+      console.log('Telemetry Sync Engine Paused: User not authenticated.');
+      return; 
+    }
+
     console.log(`Foreground sync interval started: Every ${intervalMs / 1000} seconds.`);
     
     const intervalId = setInterval(() => {
       triggerSync('scheduled');
     }, intervalMs);
 
-    return () => clearInterval(intervalId);
-  }, [intervalMs]);
-
-  // AppState Listener
-  useEffect(() => {
+    // Start the AppState Listener
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      // If the app is transitioning from the background to the active foreground
       if (
         appState.current.match(/inactive|background/) &&
         nextAppState === 'active'
@@ -50,13 +51,14 @@ export function useTelemetrySync(intervalMs = FOREGROUND_INTERVAL) {
         console.log("App has come to the foreground! Catching up on missed syncs...");
         triggerSync('app-resume');
       }
-
       appState.current = nextAppState;
     });
 
-    // Cleanup the listener if the hook ever unmounts
     return () => {
+      clearInterval(intervalId);
       subscription.remove();
+      console.log('Telemetry Sync Engine Stopped.');
     };
-  }, []);
+    
+  }, [user, intervalMs]);
 }
