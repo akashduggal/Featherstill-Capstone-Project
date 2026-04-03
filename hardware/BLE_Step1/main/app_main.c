@@ -114,8 +114,9 @@ static void mock_sender_task(void *arg)
 
         battery_log_t rec;
         ble_batt_mock_build_record(&rec);
-        rec.seq = battery_log_next_seq();
-        ESP_LOGI(TAGT, "LIVE rec ts=%u seq=%" PRIu32, rec.timestamp_s, rec.seq);
+        rec.boot_id = seq_local_get_boot_id();
+        rec.seq_local = seq_local_next();
+        ESP_LOGI(TAGT, "LIVE rec ts=%u boot_id=%" PRIu32 " seq_local=%" PRIu32, rec.timestamp_s, rec.boot_id, rec.seq_local);
         if (ble_batt_mock_is_subscribed()) {
             int rc = ble_batt_mock_notify_live(&rec);
             if (rc != 0) {

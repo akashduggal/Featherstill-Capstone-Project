@@ -10,9 +10,13 @@
  * Keep this struct packed and stable; its binary representation is written/read
  * directly to/from flash. Changing this struct after deployed devices exist
  * will break compatibility.
+ *
+ * Structure v4: Added boot_id and seq_local for boot-based sequence tracking.
+ *              Dropped global seq field.
  */
 typedef struct __attribute__((packed)) {
-    uint32_t seq;  
+    uint32_t boot_id;                  // Boot ID (monotonic counter per device boot)
+    uint32_t seq_local;                // Local sequence within this boot (0-based, resets each boot)
     uint32_t timestamp_s;              // Unix timestamp in seconds
     uint16_t cell_mv[16];              // Individual cell voltages (mV)
     uint16_t pack_total_mv;            // Total pack voltage (mV)
@@ -22,11 +26,11 @@ typedef struct __attribute__((packed)) {
     int16_t  temp_ts1_c_x100;          // Temperature sensor 1 (°C * 100)
     int16_t  temp_int_c_x100;          // Internal temp (°C * 100)
     uint8_t  soc;                      // State of charge (0-100)
-    uint8_t  _pad[3];                  // padding to align size to multiple of 4 (optional)
+    uint8_t  _pad[3];                  // padding to align size to multiple of 4
 } battery_log_t;
 
-#define LOG_RECORD_VERSION 3
-#define LOG_RECORD_SIZE_BYTES 56  // set to exact sizeof(battery_log_t)
+#define LOG_RECORD_VERSION 4
+#define LOG_RECORD_SIZE_BYTES 64  // set to exact sizeof(battery_log_t)
 
 _Static_assert(sizeof(battery_log_t) == LOG_RECORD_SIZE_BYTES,
                "battery_log_t size changed! Bump LOG_RECORD_VERSION and migrate/wipe battery.bin");
