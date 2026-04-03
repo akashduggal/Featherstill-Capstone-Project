@@ -14,3 +14,4 @@ export * from './ActionButton';
 export * from './BluetoothConnectionUI';
 export * from './Modal';
 export * from './OtaUpdateModal';
+export * from './ToastConfig';

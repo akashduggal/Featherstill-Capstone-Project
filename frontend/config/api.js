@@ -3,9 +3,15 @@
  * Centralized settings for backend communication
  */
 
+const normalizeBaseUrl = (url) => {
+  if (!url) return '';
+  const withProtocol = /^https?:\/\//i.test(url) ? url : `http://${url}`;
+  return withProtocol.replace(/\/+$/, '');
+};
+
 export const API_CONFIG = {
-  // Base URL for backend API
-  BASE_URL: '3.137.110.175:3000',
+  // Base URL for backend API (set in frontend/.env)
+  BASE_URL: normalizeBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL),
   
   // Request timeout (milliseconds)
   TIMEOUT: 10000,
@@ -20,5 +26,6 @@ export const API_CONFIG = {
  * @returns {string} Full URL
  */
 export const getApiUrl = (endpoint) => {
-  return `${API_CONFIG.BASE_URL}${endpoint}`;
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${API_CONFIG.BASE_URL}${path}`;
 };

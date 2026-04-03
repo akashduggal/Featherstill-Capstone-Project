@@ -1,6 +1,7 @@
 const User = require('./User');
 const Battery = require('./Battery');
 const BatteryReading = require('./BatteryReading');
+const Firmware = require('./Firmware');
 
 // Define associations
 User.hasMany(Battery, {
@@ -27,4 +28,5 @@ module.exports = {
   User,
   Battery,
   BatteryReading,
+  Firmware,
 };

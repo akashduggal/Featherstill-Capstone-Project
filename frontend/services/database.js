@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { getApiUrl } from '../config/api';
+import { makePostRequest } from './networkManager';
 
 const db = SQLite.openDatabaseSync('featherstill.db');
 const SYNC_PATH = '/api/battery-readings';
@@ -100,11 +101,7 @@ export const syncTelemetryToAWS = async () => {
     const payloads = unsyncedData.map((row) => JSON.parse(row.payload));
     const idsToUpdate = unsyncedData.map((row) => row.id);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ batch: payloads }),
-    });
+    const response = await makePostRequest(url, body);
 
     if (response.ok) {
       markAsSynced(idsToUpdate);

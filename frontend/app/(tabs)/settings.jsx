@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { Asset } from 'expo-asset';
 import { File } from 'expo-file-system';
 import { Buffer } from 'buffer';
+import Toast from 'react-native-toast-message';
 import { useAuth, useSettings } from "../../context";
 import { BLEContext } from "../../context/BLEContext";
 import { Colors } from "../../constants/Colors";
@@ -50,6 +51,18 @@ export default function Settings() {
   } = React.useContext(BLEContext);
   const [isOtaModalVisible, setIsOtaModalVisible] = useState(false);
 
+  useEffect(() => {
+    if (otaStatus === 'success') {
+      setIsOtaModalVisible(false);
+      Toast.show({
+        type: 'success',
+        text1: 'Firmware Update Successful',
+        text2: 'Please connect the module again.',
+        visibilityTime: 10000,
+      });
+    }
+  }, [otaStatus]);
+
   const handleOtaUpdate = async () => {
     if (!isOtaSupported) {
       console.log('OTA is not supported on this device.');
@@ -85,6 +98,16 @@ export default function Settings() {
     }
   };
 
+  const handleAbortOta = () => {
+    abortOta();
+    setIsOtaModalVisible(false);
+    Toast.show({
+      type: 'error',
+      text1: 'Firmware Update Aborted',
+      text2: 'The firmware update process has been stopped.'
+    });
+  };
+
   const handleDisconnect = () => {
     disconnectFromDevice();
   };
@@ -94,7 +117,10 @@ export default function Settings() {
     : ["No modules paired"];
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
         <View style={[styles.logoContainer, { borderColor: colors.cardBorder, backgroundColor: colors.surface }]}>
           <Ionicons name="shield-checkmark" size={48} color={colors.tint} />
@@ -148,12 +174,12 @@ export default function Settings() {
         </View>
 
         <View style={styles.actions}>
-          <ActionButton
+          {/* <ActionButton
             title="Bluetooth Settings"
             icon="bluetooth-outline"
             onPress={() => router.push("/bluetooth")}
             colors={colors}
-          />
+          /> */}
           {isOtaSupported && (
             <ActionButton
               title="Start OTA Update"
@@ -189,7 +215,7 @@ export default function Settings() {
         status={otaStatus}
         progress={otaProgress}
         onClose={() => setIsOtaModalVisible(false)}
-        onAbort={abortOta}
+        onAbort={handleAbortOta}
         colors={colors}
       />
     </SafeAreaView>

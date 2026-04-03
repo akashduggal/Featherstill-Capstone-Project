@@ -1,6 +1,7 @@
 const express = require('express');
 const batteryRoutes = require('./batteryRoutes');
 const healthRoutes = require('./healthRoutes');
+const firmwareRoutes = require('./firmwareRoutes');
 
 const router = express.Router();
 
@@ -15,6 +16,11 @@ router.use('/battery-readings', batteryRoutes);
 router.use('/health', healthRoutes);
 
 /**
+ * Firmware OTA endpoints
+ */
+router.use('/firmware', firmwareRoutes);
+
+/**
  * Root API endpoint
  */
 router.get('/', (req, res) => {
@@ -23,9 +29,15 @@ router.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/api/health',
-      postReading: 'POST /api/battery-readings',
-      getReadings: 'GET /api/battery-readings/:email',
-      getLatestReading: 'GET /api/battery-readings/:email/latest',
+      batteryReadings: {
+        postReading: 'POST /api/battery-readings',
+        getReadings: 'GET /api/battery-readings/:email',
+        getLatestReading: 'GET /api/battery-readings/:email/latest',
+      },
+      firmware: {
+        upload: 'POST /api/firmware/upload (admin only)',
+        download: 'GET /api/firmware/:version/download',
+      },
     },
   });
 });

@@ -1,20 +1,50 @@
 
-import React from 'react';
-import { View, Text, StyleSheet, Modal } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, ActivityIndicator, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { ActionButton } from './ActionButton';
 
-// A simple, local ProgressBar component to avoid external dependencies.
 const ProgressBar = ({ progress, colors }) => (
   <View style={[styles.progressBarContainer, { backgroundColor: colors.surface }]}>
-    <View style={[styles.progressBar, { width: `${progress}%`, backgroundColor: colors.primary }]} />
+    <View style={[styles.progressBar, { width: `${progress}%`, backgroundColor: colors.accent }]} />
   </View>
 );
+
+const PacketAnimation = ({ colors }) => {
+  const packetAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(packetAnim, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const translateX = packetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 140],
+  });
+
+  return (
+    <View style={styles.animationContainer}>
+      <Ionicons name="phone-portrait-outline" size={32} color={colors.icon} />
+      <View style={[styles.pathway, { backgroundColor: colors.surface }]}>
+        <Animated.View style={[styles.packet, { backgroundColor: colors.accent, transform: [{ translateX }] }]} />
+      </View>
+      <Ionicons name="hardware-chip-outline" size={32} color={colors.icon} />
+    </View>
+  );
+};
 
 export const OtaUpdateModal = ({ visible, status, progress, onClose, onAbort, colors }) => {
   const getStatusMessage = () => {
     switch (status) {
       case 'starting':
-        return 'Starting OTA update...';
+        return 'Preparing for update...';
       case 'in_progress':
         return `Update in progress: ${progress}%`;
       case 'success':
@@ -26,9 +56,7 @@ export const OtaUpdateModal = ({ visible, status, progress, onClose, onAbort, co
     }
   };
 
-  const showProgressBar = status === 'in_progress' || status === 'starting';
-  const showAbortButton = status === 'in_progress' || status === 'starting';
-  const showCloseButton = status === 'success' || status === 'error' ||  status === 'idle';
+  const isUpdateInProgress = status === 'in_progress' || status === 'starting';
 
   return (
     <Modal
@@ -38,27 +66,36 @@ export const OtaUpdateModal = ({ visible, status, progress, onClose, onAbort, co
       onRequestClose={onClose}
     >
       <View style={styles.centeredView}>
-        <View style={[styles.content, { backgroundColor: colors.background }]}>
+        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={[styles.content, { backgroundColor: colors.surfaceElevated, borderColor: colors.cardBorder }]}>
+          <Ionicons name="cloud-upload-outline" size={80} color={colors.accent} />
           <Text style={[styles.title, { color: colors.text }]}>
             Firmware Update
           </Text>
-
+          <View style={styles.illustrationContainer}>
+            {status === 'in_progress' 
+              && <PacketAnimation colors={colors} />
+            }
+          </View>
           <View style={styles.statusContainer}>
-            <Text style={{ color: colors.text }}>
+            {status === 'starting' && (
+              <ActivityIndicator size="large" color={colors.accent} style={{ marginBottom: 20 }} />
+            )}
+            <Text style={[styles.statusText, { color: colors.text }]}>
               {getStatusMessage()}
             </Text>
-            {showProgressBar && (
+            {status === 'in_progress' && (
               <ProgressBar progress={progress} colors={colors} />
             )}
           </View>
 
           <View style={styles.buttonContainer}>
-            {showAbortButton && (
-              <ActionButton title="Abort" onPress={onAbort} colors={colors} variant="outline" />
-            )}
-            {showCloseButton && (
-              <ActionButton title="Close" onPress={onClose} colors={colors} />
-            )}
+            <ActionButton
+              title="Close"
+              onPress={isUpdateInProgress ? onAbort : onClose}
+              colors={colors}
+              variant={isUpdateInProgress ? 'outline' : 'filled'}
+            />
           </View>
         </View>
       </View>
@@ -67,40 +104,67 @@ export const OtaUpdateModal = ({ visible, status, progress, onClose, onAbort, co
 };
 
 const styles = StyleSheet.create({
-  content: {
-    padding: 20,
-    alignItems: 'center',
-    borderRadius: 10,
-    width: '80%',
-  },
   centeredView: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  content: {
+    padding: 24,
+    alignItems: 'center',
+    borderRadius: 16,
+    width: '85%',
+    borderWidth: 1,
+  },
+  illustrationContainer: {
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  animationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: 200,
+  },
+  pathway: {
+    width: 150,
+    height: 10,
+    borderRadius: 5,
+    justifyContent: 'center',
+  },
+  packet: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   statusContainer: {
     marginVertical: 20,
     alignItems: 'center',
     width: '100%',
   },
+  statusText: {
+    fontSize: 16,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
   buttonContainer: {
-    marginTop: 20,
+    marginTop: 24,
     width: '100%',
   },
   progressBarContainer: {
-    height: 10,
+    height: 12,
     width: '100%',
-    borderRadius: 5,
+    borderRadius: 6,
     marginTop: 10,
+    overflow: 'hidden',
   },
   progressBar: {
     height: '100%',
-    borderRadius: 5,
   },
 });
