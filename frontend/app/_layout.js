@@ -18,6 +18,9 @@ const RootNavigation = () => {
   const router = useRouter();
   const [isReady, setIsReady] = useState(false);
 
+  useTelemetrySync();
+
+
   useEffect(() => {
     // Only initialize the logger in development mode
     if (__DEV__) {
@@ -83,7 +86,6 @@ export default function RootLayout() {
     pruneSyncedTelemetry();
   }, []);
 
-  useTelemetrySync();
 
   return (
     <AuthProvider>
