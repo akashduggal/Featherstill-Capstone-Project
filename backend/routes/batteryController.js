@@ -1,5 +1,6 @@
 const { User, Battery, BatteryReading } = require('../models');
 const { Op } = require('sequelize');
+const admin = require('firebase-admin');
 
 /* Helpers --------------------------------------------------------------- */
 // simple numeric coercion helper
@@ -20,16 +21,91 @@ const isDbConnectionError = (err) => {
 };
 
 const findOrCreateUser = async (email) => {
-  let user = await User.findOne({ where: { email } });
+  const safeEmail = (typeof email === 'string' && email.includes('@')) ? email : 'guest@featherstill.local';
+  let user = await User.findOne({ where: { email: safeEmail } });
   if (!user) {
-    user = await User.create({ email, isGuest: false });
+    user = await User.create({ email: safeEmail, isGuest: safeEmail.startsWith('guest@') });
   }
   return user;
 };
 
 const getModuleId = (data) => {
-  const raw = data?.moduleId || data?.moduleID || '';
-  return typeof raw === 'string' ? raw.trim() : '';
+  const raw = data?.moduleId || data?.moduleID || data?.batteryId || 'ESP32';
+  return typeof raw === 'string' ? raw.trim() || 'ESP32' : 'ESP32';
+};
+
+const initFirebaseAdmin = () => {
+  if (admin.apps.length) return;
+
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not configured');
+  }
+
+  const serviceAccount = JSON.parse(raw);
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+};
+
+const extractBearerToken = (req) => {
+  const auth = req.headers?.authorization || '';
+  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  return '';
+};
+
+const resolveUserFromFirebaseToken = async (firebaseToken) => {
+  if (!firebaseToken || typeof firebaseToken !== 'string') {
+    const err = new Error('Missing firebaseToken');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  initFirebaseAdmin();
+
+  let decoded;
+  try {
+    decoded = await admin.auth().verifyIdToken(firebaseToken);
+  } catch (e) {
+    const err = new Error('Invalid firebase token');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const userRecord = await admin.auth().getUser(decoded.uid);
+  const resolvedEmail = userRecord.email || decoded.email;
+
+  if (!resolvedEmail) {
+    const err = new Error('Firebase user has no email mapped');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return findOrCreateUser(resolvedEmail);
+};
+
+const normalizeIncomingItem = (item) => {
+  const p = item?.payload && typeof item.payload === 'object' ? item.payload : item;
+  return {
+    localId: Number.isInteger(item?.localId) ? item.localId : null,
+    email: item?.email || p?.email,
+    moduleId: item?.moduleId || item?.moduleID || item?.batteryId || p?.moduleId || p?.moduleID || p?.batteryId || 'ESP32',
+    batteryName: item?.batteryName || p?.batteryName || null,
+    timestamp: item?.timestamp || p?.timestamp || (item?.ts ? new Date(item.ts).toISOString() : undefined),
+    nominalVoltage: p?.nominalVoltage,
+    capacityWh: p?.capacityWh,
+    minCellVoltage: p?.minCellVoltage,
+    maxCellVoltage: p?.maxCellVoltage,
+    totalBatteryVoltage: p?.totalBatteryVoltage,
+    cellTemperature: p?.cellTemperature,
+    currentAmps: p?.currentAmps,
+    outputVoltage: p?.outputVoltage,
+    stateOfCharge: p?.stateOfCharge,
+    chargingStatus: p?.chargingStatus,
+    cellVoltages: p?.cellVoltages,
+    rawPayload: item,
+    firebaseToken: item?.firebaseToken || null,
+  };
 };
 
 const resolveOrCreateBattery = async (user, data) => {
@@ -74,6 +150,15 @@ const buildReadingPayload = (data, batteryId) => ({
   rawPayload: data || null,
 });
 
+const createReading = async (rawItem, requestToken) => {
+  const data = normalizeIncomingItem(rawItem);
+  const tokenToUse = data.firebaseToken || requestToken;
+  const user = await resolveUserFromFirebaseToken(tokenToUse);
+  const battery = await resolveOrCreateBattery(user, data);
+  const created = await BatteryReading.create(buildReadingPayload(data, battery.id));
+  return { created, battery, localId: data.localId };
+};
+
 /* Controllers ----------------------------------------------------------- */
 
 /**
@@ -82,21 +167,64 @@ const buildReadingPayload = (data, batteryId) => ({
  */
 const postBatteryReading = async (req, res, next) => {
   try {
-    const data = req.body;
+    const isBatch = Array.isArray(req.body?.batch);
+    const items = isBatch ? req.body.batch : [req.body];
+    const requestToken = extractBearerToken(req) || req.body?.firebaseToken || null;
 
-    const user = await findOrCreateUser(data.email);
-    const battery = await resolveOrCreateBattery(user, data);
+    if (!items.length) {
+      return res.status(400).json({ success: false, error: 'Empty batch payload' });
+    }
 
-    const created = await BatteryReading.create(buildReadingPayload(data, battery.id));
+    const successLocalIds = [];
+    const failures = [];
+    let createdCount = 0;
+    let lastCreated = null;
+    let lastBattery = null;
 
-    return res.status(201).json({
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i];
+      try {
+        const { created, battery, localId } = await createReading(item, requestToken);
+        createdCount += 1;
+        lastCreated = created;
+        lastBattery = battery;
+        if (Number.isInteger(localId)) successLocalIds.push(localId);
+      } catch (err) {
+        const statusCode = err?.statusCode || 400;
+        failures.push({
+          index: i,
+          localId: item?.localId ?? null,
+          statusCode,
+          error: err.message || 'Failed to insert row',
+        });
+      }
+    }
+
+    if (!isBatch) {
+      if (!lastCreated) {
+        return res.status(400).json({ success: false, error: failures[0]?.error || 'Failed to insert reading' });
+      }
+      return res.status(201).json({
+        success: true,
+        message: 'Battery reading recorded successfully',
+        data: {
+          id: lastCreated.id,
+          batteryId: lastCreated.batteryId,
+          moduleId: lastBattery?.moduleId,
+          createdAt: lastCreated.createdAt,
+        },
+      });
+    }
+
+    return res.status(200).json({
       success: true,
-      message: 'Battery reading recorded successfully',
+      message: 'Batch processed',
       data: {
-        id: created.id,
-        batteryId: created.batteryId,
-        moduleId: battery.moduleId,
-        createdAt: created.createdAt,
+        received: items.length,
+        createdCount,
+        failedCount: failures.length,
+        successLocalIds,
+        failures,
       },
     });
   } catch (err) {

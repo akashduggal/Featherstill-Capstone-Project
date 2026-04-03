@@ -3,6 +3,7 @@ import { getApiUrl } from '../config/api';
 import { makePostRequest } from './networkManager';
 
 const db = SQLite.openDatabaseSync('featherstill.db');
+const SYNC_PATH = '/api/battery-readings';
 
 export const initDB = () => {
   try {
@@ -53,7 +54,8 @@ export const getTelemetry = () => {
 
 export const getUnsyncedTelemetry = () => {
   try {
-    return db.getAllSync('SELECT * FROM telemetry WHERE synced = 0 LIMIT 50');
+    // send all unsynced rows in one batch
+    return db.getAllSync('SELECT * FROM telemetry WHERE synced = 0 ORDER BY id ASC');
   } catch (error) {
     console.error("Error fetching unsynced data:", error);
     return [];
@@ -77,41 +79,13 @@ export const markAsSynced = (ids) => {
   }
 };
 
-const SYNC_PATH = '/api/battery-readings';
-
 const normalizeUrl = (url) => {
   if (!url) return '';
   return /^https?:\/\//i.test(url) ? url : `http://${url}`;
 };
 
-const toNumber = (v, fallback = 0) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-};
-
-const mapLocalToBackendPayload = (local) => {
-  const p = local?.payload && typeof local.payload === 'object' ? local.payload : {};
-  return {
-    email: (typeof local?.email === 'string' && local.email.includes('@')) ? local.email : 'guest@featherstill.local',
-    moduleId: local?.moduleId || local?.batteryId || 'ESP32',
-    totalBatteryVoltage: toNumber(p.totalBatteryVoltage, 0),
-    cellTemperature: toNumber(p.cellTemperature, 0),
-    currentAmps: toNumber(p.currentAmps, 0),
-    stateOfCharge: toNumber(p.stateOfCharge, 0),
-    chargingStatus: p.chargingStatus || 'INACTIVE',
-    cellVoltages: Array.isArray(p.cellVoltages) ? p.cellVoltages.map((v) => toNumber(v, 0)) : [],
-    nominalVoltage: toNumber(p.nominalVoltage, 51.2),
-    capacityWh: toNumber(p.capacityWh, 5222),
-    minCellVoltage: p.minCellVoltage != null ? toNumber(p.minCellVoltage, null) : null,
-    maxCellVoltage: p.maxCellVoltage != null ? toNumber(p.maxCellVoltage, null) : null,
-    outputVoltage: p.outputVoltage != null ? toNumber(p.outputVoltage, null) : null,
-    timestamp: local?.ts ? new Date(local.ts).toISOString() : new Date().toISOString(),
-    rawPayload: local,
-  };
-};
-
 /**
- * The main orchestrator function to handle the AWS upload.
+ * The main orchestrator function to handle backend upload.
  */
 export const syncTelemetryToAWS = async () => {
   const unsyncedData = getUnsyncedTelemetry();
@@ -123,28 +97,20 @@ export const syncTelemetryToAWS = async () => {
     return;
   }
 
-  const successfulIds = [];
+  try {
+    const payloads = unsyncedData.map((row) => JSON.parse(row.payload));
+    const idsToUpdate = unsyncedData.map((row) => row.id);
 
-  for (const row of unsyncedData) {
-    try {
-      const localPayload = JSON.parse(row.payload);
-      const body = mapLocalToBackendPayload(localPayload);
+    const response = await makePostRequest(url, body);
 
-      const response = await makePostRequest(url, body);
-
-      if (response.ok) {
-        successfulIds.push(row.id);
-      } else {
-        const errText = await response.text().catch(() => '');
-        console.error(`Sync failed for row ${row.id}:`, response.status, errText);
-      }
-    } catch (error) {
-      console.error(`Sync error for row ${row.id}:`, error);
+    if (response.ok) {
+      markAsSynced(idsToUpdate);
+    } else {
+      const errText = await response.text().catch(() => '');
+      console.error('Batch sync failed:', response.status, errText);
     }
-  }
-
-  if (successfulIds.length > 0) {
-    markAsSynced(successfulIds);
+  } catch (error) {
+    console.error('Network error during batch sync:', error);
   }
 };
 
