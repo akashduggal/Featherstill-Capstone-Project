@@ -107,7 +107,10 @@ export default function Dashboard() {
 
   if (!connectedDevice) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
         <View style={styles.notConnectedContainer}>
           <Text style={[styles.title, { color: colors.text, marginBottom: 30 }]}>Connect Module</Text>
         </View>
@@ -118,7 +121,10 @@ export default function Dashboard() {
 
   if (!displayData) {
     return (
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
         <View style={[styles.container, { justifyContent: 'center', flex: 1 }]}>
           <Text style={[styles.title, { color: colors.text }]}>Waiting for Telemetry...</Text>
           <Text style={[styles.subtitle, { color: colors.icon }]}>Receiving packets from ESP32</Text>
@@ -149,7 +155,10 @@ export default function Dashboard() {
   const tempString = temperatureUnit === 'F' ? `${displayTemp.toFixed(1)} °F` : `${displayTemp.toFixed(1)} °C`;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      style={[styles.safeArea, { backgroundColor: colors.background }]}
+    >
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.container}
@@ -168,12 +177,12 @@ export default function Dashboard() {
       >
         <Text style={[styles.title, { color: colors.text }]}>Dashboard</Text>
 
-        <Button title={isPosting ? 'Sending...' : 'Send Test Reading'} onPress={handlePostBatteryData} disabled={isPosting} />
+        {/* <Button title={isPosting ? 'Sending...' : 'Send Test Reading'} onPress={handlePostBatteryData} disabled={isPosting} />
 
         <View style={{ marginTop: 8, marginBottom: 12, alignItems: "center" }}>
           <Text style={[styles.small, { color: colors.icon }]}>Post status: {postStatus}</Text>
           {lastPostTime && <Text style={[styles.small, { color: colors.text }]}>Last posted: {lastPostTime}</Text>}
-        </View>
+        </View> */}
 
         <Text style={[styles.subtitle, { color: colors.text }]}>
           Battery Data – {d.nominalVoltage}V | {d.capacityWh.toLocaleString()}Wh
