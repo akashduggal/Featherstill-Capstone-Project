@@ -105,7 +105,7 @@ export const BluetoothConnectionUI = () => {
     scanForDevices();
   };
 
-  const filteredDevices = devices.filter(device => device.name && device.name.includes('ESP32_'));
+  const filteredDevices = devices.filter(device => device.name && device.name.includes('ESP32'));
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>

@@ -22,7 +22,8 @@
         }
       ],
       "react-native-ble-plx",
-      "expo-sqlite"
+      "expo-sqlite",
+      "./plugins/withIosFirebaseFix.js"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -33,7 +34,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fetherstill.app",
       "googleServicesFile": "./GoogleService-Info.plist",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to and communicate with your Featherstill battery module.",
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to find, connect and interact with your Featherstill battery module."
+      }
     },
     "android": {
       "adaptiveIcon": {
