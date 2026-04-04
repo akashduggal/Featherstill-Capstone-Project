@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "start": "APP_ENV=production expo start",
+    "android": "APP_ENV=production expo run:android",
+    "ios": "APP_ENV=production expo run:ios",
     "web": "expo start --web",
-    "start:dev": "expo start --dev-client",
+    "start:dev": "APP_ENV=development expo start --dev-client",
+    "start:preview": "APP_ENV=preview expo start --dev-client",
     "test": "jest",
     "test:watch": "jest --watchAll"
   },
