@@ -71,6 +71,7 @@ const fetherstillConfig = {
 
 export default ({ config }) => {
   const isDevelopment = process.env.APP_ENV === 'development';
+  const isPreview = process.env.APP_ENV === 'preview';
 
   const devConfig = {
     name: 'fetherstill (Dev)',
@@ -84,7 +85,24 @@ export default ({ config }) => {
     },
   };
 
-  const extraConfig = isDevelopment ? devConfig : {};
+  const previewConfig = {
+    name: 'fetherstill (Preview)',
+    ios: {
+      ...fetherstillConfig.ios,
+      bundleIdentifier: 'com.fetherstill.app.preview',
+    },
+    android: {
+      ...fetherstillConfig.android,
+      package: 'com.fetherstill.app.preview',
+    },
+  };
+
+  let extraConfig = {};
+  if (isDevelopment) {
+    extraConfig = devConfig;
+  } else if (isPreview) {
+    extraConfig = previewConfig;
+  }
 
   return {
     ...config,
