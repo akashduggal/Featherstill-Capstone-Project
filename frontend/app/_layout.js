@@ -13,6 +13,9 @@ import {
 import { BLEProvider } from '../context/BLEContext';
 import { initDB, pruneSyncedTelemetry } from '../services/database';
 import { useTelemetrySync } from '../hooks/useTelemetrySync';
+import { useAppUpdates } from '../hooks/useAppUpdates';
+import UpdateReadyBanner from '../components/UpdateReadyBanner';
+import DownloadProgressModal from '../components/DownloadProgressModal';
 import Toast from 'react-native-toast-message';
 import { toastConfig } from '../components/ToastConfig';
 
@@ -94,6 +97,7 @@ const RootNavigation = ({ setAppReady }) => {
 export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const [splashAnimationDone, setSplashAnimationDone] = useState(false);
+  const { isUpdateReady, reloadApp, isDownloading } = useAppUpdates();
 
   useEffect(() => {
     // Database initialization happens exactly once during the splash hold
@@ -124,6 +128,9 @@ export default function RootLayout() {
           onFinish={() => setSplashAnimationDone(true)}
         />
       )}
+
+      <DownloadProgressModal visible={isDownloading} />
+      {isUpdateReady && <UpdateReadyBanner onRestart={reloadApp} />}
 
       <Toast config={toastConfig} />
     </View>

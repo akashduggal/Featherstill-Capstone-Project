@@ -13,6 +13,7 @@ import { Asset } from 'expo-asset';
 import { File } from 'expo-file-system';
 import { Buffer } from 'buffer';
 import Toast from 'react-native-toast-message';
+import { useAppUpdates } from '../../hooks/useAppUpdates';
 import { useAuth, useSettings } from "../../context";
 import { BLEContext } from "../../context/BLEContext";
 import { Colors } from "../../constants/Colors";
@@ -29,6 +30,7 @@ export default function Settings() {
   const colors = Colors[theme];
   const router = useRouter();
   const { user, logout, isGuest } = useAuth();
+  const { manual_check_for_updates } = useAppUpdates();
   
   // Settings & BLE
   const { autoRefresh, setAutoRefresh, temperatureUnit, setTemperatureUnit } = useSettings();
@@ -169,6 +171,13 @@ export default function Settings() {
             onToggle={() => setAutoRefresh(!autoRefresh)}
             label="Auto-refresh"
             subText={autoRefresh ? `Refreshing every 2.0 s` : null}
+            colors={colors}
+          />
+          <View style={{height: 12}} />
+          <ActionButton
+            title="Check for Updates"
+            icon="arrow-down-circle-outline"
+            onPress={manual_check_for_updates}
             colors={colors}
           />
         </View>
