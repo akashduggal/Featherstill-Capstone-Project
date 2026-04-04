@@ -7,7 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "start:dev": "expo start --dev-client",
+    "start:dev": "APP_ENV=development expo start --dev-client",
     "test": "jest",
     "test:watch": "jest --watchAll"
   },
