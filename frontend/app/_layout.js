@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,12 +17,13 @@ import Toast from 'react-native-toast-message';
 import { toastConfig } from '../components/ToastConfig';
 
 // Prevent the native static splash screen from hiding automatically immediately on boot
-SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.preventAutoHideAsync().catch(() => { });
 
 const RootNavigation = ({ setAppReady }) => {
   const { user, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const [isReady, setIsReady] = useState(false);
 
   useTelemetrySync();
@@ -39,15 +40,16 @@ const RootNavigation = ({ setAppReady }) => {
 
   useEffect(() => {
     const handleRouting = async () => {
-      if (loading) return;
+      // Must wait for auth state AND for Expo Router to be fully mounted
+      if (loading || !rootNavigationState?.key) return;
 
-      const onboarded = (await AsyncStorage.getItem('hasOnboarded')) === 'true';
+      const storedVal = await AsyncStorage.getItem('hasOnboarded');
+      const onboarded = storedVal === 'true';
       const inAuthGroup = segments[0] === '(auth)';
       const inOnboarding = segments[0] === 'onboarding';
 
       if (!isReady) {
         setIsReady(true);
-        // Inform RootLayout that routing determines where to go, safe to fade out splash
         setAppReady(true);
       }
 
@@ -60,7 +62,6 @@ const RootNavigation = ({ setAppReady }) => {
       // Already onboarded: normal auth flow
       if (onboarded) {
         if (inOnboarding) {
-          // Coming back from onboarding after completing it
           router.replace('/(auth)/login');
         } else if (!user && !inAuthGroup) {
           router.replace('/(auth)/login');
@@ -70,7 +71,13 @@ const RootNavigation = ({ setAppReady }) => {
       }
     };
     handleRouting();
-  }, [user, loading, segments, isReady, setAppReady, router]);
+  }, [user, loading, segments, isReady, setAppReady, router, rootNavigationState?.key]);
+
+  // Prevent routing race conditions by not rendering the Stack until auth/onboarding states are resolved.
+  // The AnimatedSplash natively covers this blank view anyway, allowing for seamless transition.
+  if (loading || !isReady) {
+    return <View style={{ flex: 1, backgroundColor: '#0F172A' }} />;
+  }
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -106,18 +113,18 @@ export default function RootLayout() {
           </BatteryProvider>
         </SettingsProvider>
       </AuthProvider>
-      
+
       {/* 
         AnimatedSplash is an absolute fill view over the root navigation,
         making the transition perfectly smooth. Once animation finishes, we stop rendering it. 
       */}
       {!splashAnimationDone && (
-        <AnimatedSplash 
-          isAppReady={appReady} 
-          onFinish={() => setSplashAnimationDone(true)} 
+        <AnimatedSplash
+          isAppReady={appReady}
+          onFinish={() => setSplashAnimationDone(true)}
         />
       )}
-      
+
       <Toast config={toastConfig} />
     </View>
   );
