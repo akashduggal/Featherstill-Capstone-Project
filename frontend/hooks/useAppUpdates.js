@@ -4,30 +4,25 @@ import { Alert, AppState } from 'react-native';
 
 export const useAppUpdates = () => {
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+  const [isUpdateReady, setIsUpdateReady] = useState(false);
 
   const download_update = async () => {
     try {
       await Updates.fetchUpdateAsync();
-      Alert.alert(
-        'Update Downloaded',
-        'A new update has been downloaded. Restart the app to apply it now?',
-        [
-          { text: 'Later', style: 'cancel' },
-          {
-            text: 'Restart Now',
-            onPress: async () => {
-              await Updates.reloadAsync();
-            },
-          },
-        ]
-      );
+      setIsUpdateReady(true);
     } catch (error) {
       console.error('Error downloading update:', error);
       Alert.alert('Download Error', 'Something went wrong while downloading the update. Please try again later.');
     }
   };
 
+  const reloadApp = async () => {
+    await Updates.reloadAsync();
+  };
+
   const check_for_updates = async (showAlertOnNoUpdate = false) => {
+    if (isUpdateReady) return; // Don't check if an update is already downloaded
+
     try {
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
@@ -71,5 +66,5 @@ export const useAppUpdates = () => {
     };
   }, []);
 
-  return { isUpdateAvailable, check_for_updates };
+  return { isUpdateAvailable, check_for_updates, isUpdateReady, reloadApp };
 };
