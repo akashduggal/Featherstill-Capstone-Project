@@ -5,31 +5,52 @@ import { Alert, AppState } from 'react-native';
 export const useAppUpdates = () => {
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
 
-  const check_for_updates = async () => {
+  const download_update = async () => {
+    try {
+      await Updates.fetchUpdateAsync();
+      Alert.alert(
+        'Update Downloaded',
+        'A new update has been downloaded. Restart the app to apply it now?',
+        [
+          { text: 'Later', style: 'cancel' },
+          {
+            text: 'Restart Now',
+            onPress: async () => {
+              await Updates.reloadAsync();
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error downloading update:', error);
+      Alert.alert('Download Error', 'Something went wrong while downloading the update. Please try again later.');
+    }
+  };
+
+  const check_for_updates = async (showAlertOnNoUpdate = false) => {
     try {
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
         setIsUpdateAvailable(true);
-        await Updates.fetchUpdateAsync();
         Alert.alert(
-          'Update Downloaded',
-          'A new update has been downloaded. Restart the app to apply it now?',
+          'Update Available',
+          'A new version of the app is available. Do you want to download it now?',
           [
             { text: 'Later', style: 'cancel' },
             {
-              text: 'Restart Now',
-              onPress: async () => {
-                await Updates.reloadAsync();
-              },
+              text: 'Download',
+              onPress: () => download_update(),
             },
           ]
         );
-      } else {
+      } else if (showAlertOnNoUpdate) {
         Alert.alert('No Updates', 'You are on the latest version of the app.');
       }
     } catch (error) {
       console.error('Error checking for updates:', error);
-      Alert.alert('Update Error', 'Something went wrong while checking for updates. Please try again later.');
+      if (showAlertOnNoUpdate) {
+        Alert.alert('Update Error', 'Something went wrong while checking for updates. Please try again later.');
+      }
     }
   };
 

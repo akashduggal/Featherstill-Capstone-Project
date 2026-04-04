@@ -177,7 +177,7 @@ export default function Settings() {
           <ActionButton
             title="Check for Updates"
             icon="arrow-down-circle-outline"
-            onPress={check_for_updates}
+            onPress={() => check_for_updates(true)}
             colors={colors}
           />
         </View>
