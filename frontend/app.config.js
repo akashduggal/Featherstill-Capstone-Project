@@ -1,9 +1,19 @@
 
+import packageJson from './package.json';
+
+const { version } = packageJson;
+
+// Generate a versionCode for Android
+const generateVersionCode = (versionString) => {
+  const [major, minor, patch] = versionString.split('.').map(Number);
+  return major * 10000 + minor * 100 + patch;
+};
+
 const fetherstillConfig = {
   owner: 'fetherstill',
   name: 'fetherstill',
   slug: 'fetherstill',
-  version: '1.0.0',
+  version,
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
@@ -34,7 +44,7 @@ const fetherstillConfig = {
     supportsTablet: true,
     bundleIdentifier: 'com.fetherstill.app',
     googleServicesFile: './GoogleService-Info.plist',
-    buildNumber: '1',
+    buildNumber: version,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSBluetoothPeripheralUsageDescription:
@@ -51,7 +61,7 @@ const fetherstillConfig = {
     edgeToEdgeEnabled: true,
     package: 'com.fetherstill.app',
     googleServicesFile: './google-services.json',
-    versionCode: 1,
+    versionCode: generateVersionCode(version),
     permissions: [
       'android.permission.BLUETOOTH',
       'android.permission.BLUETOOTH_ADMIN',
