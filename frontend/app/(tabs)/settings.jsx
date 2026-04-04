@@ -30,7 +30,7 @@ export default function Settings() {
   const colors = Colors[theme];
   const router = useRouter();
   const { user, logout, isGuest } = useAuth();
-  const { check_for_updates } = useAppUpdates();
+  const { manual_check_for_updates } = useAppUpdates();
   
   // Settings & BLE
   const { autoRefresh, setAutoRefresh, temperatureUnit, setTemperatureUnit } = useSettings();
@@ -177,7 +177,7 @@ export default function Settings() {
           <ActionButton
             title="Check for Updates"
             icon="arrow-down-circle-outline"
-            onPress={() => check_for_updates(true)}
+            onPress={manual_check_for_updates}
             colors={colors}
           />
         </View>
