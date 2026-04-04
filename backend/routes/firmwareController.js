@@ -18,6 +18,51 @@ const validateVersion = (version) => {
   return true;
 };
 
+/**
+ * Compare two semantic versions.
+ * Returns 1 if a > b, -1 if a < b, 0 if equal.
+ */
+const compareSemver = (a, b) => {
+  const parse = (version) => version.split('.').map((n) => Number(n));
+  const aParts = parse(a);
+  const bParts = parse(b);
+
+  for (let i = 0; i < Math.max(aParts.length, bParts.length); i += 1) {
+    const aVal = aParts[i] || 0;
+    const bVal = bParts[i] || 0;
+    if (aVal > bVal) return 1;
+    if (aVal < bVal) return -1;
+  }
+  return 0;
+};
+
+/**
+ * Keep only the newest N firmware versions in storage.
+ * Older firmware rows remain in the database for audit/history.
+ */
+const cleanupFirmwareFiles = async (keepCount = 5) => {
+  const firmwares = await Firmware.findAll({
+    order: [[ 'created_at', 'DESC' ]],
+  });
+
+  if (firmwares.length <= keepCount) {
+    return;
+  }
+
+  const toDelete = firmwares.slice(keepCount);
+
+  for (const fw of toDelete) {
+    // Remove file from storage folder
+    const filePath = path.join(STORAGE_DIR, fw.filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Keep the record for audit; mark as inactive if needed
+    // await Firmware.update({ is_active: false }, { where: { id: fw.id } });
+  }
+};
+
 const generateFileHash = (filePath) => {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
@@ -83,6 +128,40 @@ exports.uploadFirmware = async (req, res) => {
       });
     }
 
+    // Enforce monotonic version progression (prevent downgrade or same-version replacement)
+    const activeFirmwares = await Firmware.findAll({ where: { is_active: true } });
+    let latestFirmware = null;
+
+    if (activeFirmwares && activeFirmwares.length > 0) {
+      latestFirmware = activeFirmwares.reduce((current, next) => {
+        if (compareSemver(next.version, current.version) > 0) {
+          return next;
+        }
+        return current;
+      }, activeFirmwares[0]);
+    } else {
+      const allFirmwares = await Firmware.findAll();
+      if (allFirmwares && allFirmwares.length > 0) {
+        latestFirmware = allFirmwares.reduce((current, next) => {
+          if (compareSemver(next.version, current.version) > 0) {
+            return next;
+          }
+          return current;
+        }, allFirmwares[0]);
+      }
+    }
+
+    if (latestFirmware && compareSemver(version, latestFirmware.version) <= 0) {
+      // fs.unlinkSync(req.file.path); // Not sure if to keep back up for how long? 
+      return res.status(409).json({
+        success: false,
+        error: `Firmware version ${version} is not newer than current latest version ${latestFirmware.version}`,
+      });
+    }
+
+    // Deactivate existing active firmware records before promoting new release
+    await Firmware.update({ is_active: false }, { where: { is_active: true } });
+
     // Generate SHA256 hash
     const fileHash = await generateFileHash(req.file.path);
     const fileSize = fs.statSync(req.file.path).size;
@@ -101,6 +180,9 @@ exports.uploadFirmware = async (req, res) => {
       changelog: changelog || null,
       is_active: true,
     });
+
+    // Maintain retention policy: keep only the latest 5 versions
+    await cleanupFirmwareFiles(5);
 
     res.status(201).json({
       success: true,
@@ -188,6 +270,56 @@ exports.downloadFirmware = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to download firmware',
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * GET /api/firmware/latest
+ * Get metadata for the latest firmware version (by semver, prefers active releases)
+ */
+exports.getLatestFirmware = async (req, res) => {
+  try {
+    let firmwares = await Firmware.findAll({ where: { is_active: true } });
+
+    if (!firmwares || firmwares.length === 0) {
+      firmwares = await Firmware.findAll();
+    }
+
+    if (!firmwares || firmwares.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No firmware versions available',
+      });
+    }
+
+    const latest = firmwares.reduce((current, next) => {
+      if (compareSemver(next.version, current.version) > 0) {
+        return next;
+      }
+      return current;
+    }, firmwares[0]);
+
+    return res.status(200).json({
+      success: true,
+      firmware: {
+        id: latest.id,
+        version: latest.version,
+        filename: latest.filename,
+        file_hash: latest.file_hash,
+        file_size: latest.file_size,
+        changelog: latest.changelog,
+        is_active: latest.is_active,
+        created_at: latest.created_at,
+      },
+      download_url: `${req.protocol}://${req.get('host')}/api/firmware/${latest.version}/download`,
+    });
+  } catch (error) {
+    console.error('Error fetching latest firmware:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch latest firmware',
       message: error.message,
     });
   }

@@ -4,6 +4,7 @@ const upload = require('../middleware/firmwareUpload');
 const {
   uploadFirmware,
   downloadFirmware,
+  getLatestFirmware,
 } = require('./firmwareController');
 
 /**
@@ -63,6 +64,7 @@ router.post('/upload', upload.single('file'), uploadFirmware);
  *   - X-File-Hash: SHA256 hash of file
  *   - X-Firmware-Version: Version number
  */
+router.get('/latest', getLatestFirmware);
 router.get('/:version/download', downloadFirmware);
 
 module.exports = router;

@@ -36,6 +36,7 @@ router.get('/', (req, res) => {
       },
       firmware: {
         upload: 'POST /api/firmware/upload (admin only)',
+        latest: 'GET /api/firmware/latest',
         download: 'GET /api/firmware/:version/download',
       },
     },
