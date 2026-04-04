@@ -5,14 +5,18 @@ import { Alert, AppState } from 'react-native';
 export const useAppUpdates = () => {
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [isUpdateReady, setIsUpdateReady] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const download_update = async () => {
+    setIsDownloading(true);
     try {
       await Updates.fetchUpdateAsync();
       setIsUpdateReady(true);
     } catch (error) {
       console.error('Error downloading update:', error);
       Alert.alert('Download Error', 'Something went wrong while downloading the update. Please try again later.');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -21,7 +25,7 @@ export const useAppUpdates = () => {
   };
 
   const check_for_updates = async (showAlertOnNoUpdate = false) => {
-    if (isUpdateReady) return; // Don't check if an update is already downloaded
+    if (isUpdateReady || isDownloading) return;
 
     try {
       const update = await Updates.checkForUpdateAsync();
@@ -66,5 +70,5 @@ export const useAppUpdates = () => {
     };
   }, []);
 
-  return { isUpdateAvailable, check_for_updates, isUpdateReady, reloadApp };
+  return { isUpdateAvailable, check_for_updates, isUpdateReady, reloadApp, isDownloading };
 };
