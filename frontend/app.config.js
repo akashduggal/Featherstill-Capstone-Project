@@ -34,6 +34,7 @@ const fetherstillConfig = {
     'react-native-ble-plx',
     'expo-sqlite',
     './plugins/withIosFirebaseFix.js',
+    'expo-updates',
   ],
   splash: {
     image: './assets/splash-icon.png',
@@ -70,6 +71,9 @@ const fetherstillConfig = {
   },
   web: {
     favicon: './assets/favicon.png',
+  },
+  updates: {
+    url: 'https://u.expo.dev/453d94d5-285f-408c-8a98-522d3767fb3b',
   },
   extra: {
     router: {},
