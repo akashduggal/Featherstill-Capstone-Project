@@ -1,11 +1,13 @@
 import * as Updates from 'expo-updates';
 import { useEffect, useState } from 'react';
 import { Alert, AppState } from 'react-native';
+import { useNetInfo } from '@react-native-community/netinfo';
 
 export const useAppUpdates = () => {
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [isUpdateReady, setIsUpdateReady] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const netInfo = useNetInfo();
 
   const download_update = async () => {
     setIsDownloading(true);
@@ -26,6 +28,13 @@ export const useAppUpdates = () => {
 
   const check_for_updates = async (showAlertOnNoUpdate = false) => {
     if (isUpdateReady || isDownloading) return;
+
+    if (!netInfo.isConnected) {
+      if (showAlertOnNoUpdate) {
+        Alert.alert('Offline', 'You are currently offline. Please check your internet connection and try again.');
+      }
+      return;
+    }
 
     try {
       const update = await Updates.checkForUpdateAsync();
