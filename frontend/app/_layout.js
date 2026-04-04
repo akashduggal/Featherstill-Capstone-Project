@@ -13,6 +13,7 @@ import {
 import { BLEProvider } from '../context/BLEContext';
 import { initDB, pruneSyncedTelemetry } from '../services/database';
 import { useTelemetrySync } from '../hooks/useTelemetrySync';
+import { useAppUpdates } from '../hooks/useAppUpdates';
 import Toast from 'react-native-toast-message';
 import { toastConfig } from '../components/ToastConfig';
 
@@ -27,6 +28,7 @@ const RootNavigation = ({ setAppReady }) => {
   const [isReady, setIsReady] = useState(false);
 
   useTelemetrySync();
+  useAppUpdates();
 
 
   useEffect(() => {
