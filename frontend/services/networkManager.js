@@ -3,13 +3,22 @@ import { getAuth, getIdToken } from '@react-native-firebase/auth';
 const getAuthToken = async () => {
   const auth = getAuth();
   const currentUser = auth.currentUser;
-  
-  if (!currentUser) return null;
+
+  if (!currentUser) {
+    console.warn('[Network] No Firebase currentUser. Token unavailable.');
+    return null;
+  }
 
   try {
-    return await getIdToken(currentUser);
+    const token = await getIdToken(currentUser);
+    console.log('[Network] Firebase token fetched:', {
+      uid: currentUser.uid,
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+    });
+    return token;
   } catch (error) {
-    console.error('Failed to retrieve Firebase token:', error);
+    console.error('[Network] Failed to retrieve Firebase token:', error?.message || error);
     return null;
   }
 };
@@ -22,18 +31,20 @@ const getAuthToken = async () => {
  */
 export const makePostRequest = async (url, body, requireAuth = true) => {
   const token = await getAuthToken();
-  
+
   if (requireAuth && !token) {
     throw new Error(`Authentication required. Aborting request to ${url}`);
   }
 
-  const headers = {
-    'Content-Type': 'application/json',
-  };
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  console.log('[Network] POST request debug:', {
+    url,
+    hasAuthHeader: !!headers.Authorization,
+    bodyType: Array.isArray(body) ? 'array' : typeof body,
+    batchCount: Array.isArray(body?.batch) ? body.batch.length : undefined,
+  });
 
   const response = await fetch(url, {
     method: 'POST',
@@ -42,7 +53,8 @@ export const makePostRequest = async (url, body, requireAuth = true) => {
   });
 
   if (response.status === 401) {
-    console.error("401 Unauthorized: Token may be invalid or expired.");
+    const text = await response.text().catch(() => '');
+    console.error('[Network] 401 Unauthorized:', text || 'No body');
   }
 
   return response;

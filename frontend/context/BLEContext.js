@@ -216,12 +216,11 @@ export const BLEProvider = ({ children }) => {
                   if (parsedData) {
                     setTelemetryData(parsedData);
                     const dbPayload = {
-                      email: user?.email ?? "Guest" ,
                       moduleId: "ESP32",
                       payload: formatBmsPayload(parsedData),
-                      ts: parsedData.timestamp_s * 1000 
+                      ts: parsedData.timestamp_s * 1000
                     };
-                    
+
                     insertTelemetry(dbPayload);
                   } else {
                     console.log('Received raw data (incomplete packet):', packet.toString('hex'));
