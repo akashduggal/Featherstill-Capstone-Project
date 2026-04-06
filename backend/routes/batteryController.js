@@ -171,10 +171,9 @@ const buildReadingPayload = (data, batteryId) => ({
   rawPayload: data || null,
 });
 
-const createReading = async (rawItem, requestToken) => {
+const createReading = async (rawItem, authenticatedUser) => {
   const data = normalizeIncomingItem(rawItem);
-  const user = await resolveUserFromFirebaseToken(requestToken); // header token only
-  const battery = await resolveOrCreateBattery(user, data);
+  const battery = await resolveOrCreateBattery(authenticatedUser, data);
   const created = await BatteryReading.create(buildReadingPayload(data, battery.id));
   return { created, battery, localId: data.localId };
 };
@@ -194,17 +193,16 @@ const postBatteryReading = async (req, res, next) => {
     const isBatch = isBatchObject || isRawArray;
 
     const requestToken = extractBearerToken(req);
-
-    console.log('[BatteryAPI] Incoming POST summary:', {
-      requestId: req.id,
-      isBatch,
-      itemCount: items.length,
-      hasToken: !!requestToken,
-    });
+    if (!requestToken) {
+      return res.status(401).json({ success: false, error: 'Missing bearer token' });
+    }
 
     if (!items.length) {
       return res.status(400).json({ success: false, error: 'Empty payload' });
     }
+
+    // Verify token once and reuse resolved user for all items
+    const authenticatedUser = await resolveUserFromFirebaseToken(requestToken);
 
     const successLocalIds = [];
     const failures = [];
@@ -215,7 +213,7 @@ const postBatteryReading = async (req, res, next) => {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       try {
-        const { created, battery, localId } = await createReading(item, requestToken);
+        const { created, battery, localId } = await createReading(item, authenticatedUser);
         createdCount += 1;
         lastCreated = created;
         lastBattery = battery;
