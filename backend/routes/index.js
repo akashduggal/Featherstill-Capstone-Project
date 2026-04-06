@@ -35,6 +35,7 @@ router.get('/', (req, res) => {
         getLatestReading: 'GET /api/battery-readings/:email/latest',
       },
       firmware: {
+        me: 'GET /api/firmware/me (admin only)',
         upload: 'POST /api/firmware/upload (admin only)',
         latest: 'GET /api/firmware/latest',
         download: 'GET /api/firmware/:version/download',

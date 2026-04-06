@@ -98,16 +98,31 @@ export const syncTelemetryToAWS = async () => {
   }
 
   try {
-    const payloads = unsyncedData.map((row) => JSON.parse(row.payload));
-    const idsToUpdate = unsyncedData.map((row) => row.id);
+    const payloads = unsyncedData.map((row) => {
+      const parsed = JSON.parse(row.payload);
+      return {
+        localId: row.id,
+        moduleId: parsed?.moduleId || 'ESP32',
+        ts: parsed?.ts || row.ts,
+        payload: parsed?.payload || {},
+      };
+    });
 
-    const response = await makePostRequest(url, body);
+    const response = await makePostRequest(url, { batch: payloads });
 
-    if (response.ok) {
-      markAsSynced(idsToUpdate);
-    } else {
+    if (!response.ok) {
       const errText = await response.text().catch(() => '');
       console.error('Batch sync failed:', response.status, errText);
+      return;
+    }
+
+    const result = await response.json().catch(() => ({}));
+    const successLocalIds = Array.isArray(result?.data?.successLocalIds)
+      ? result.data.successLocalIds
+      : [];
+
+    if (successLocalIds.length > 0) {
+      markAsSynced(successLocalIds);
     }
   } catch (error) {
     console.error('Network error during batch sync:', error);

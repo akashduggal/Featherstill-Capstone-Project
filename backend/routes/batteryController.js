@@ -1,6 +1,6 @@
 const { User, Battery, BatteryReading } = require('../models');
 const { Op } = require('sequelize');
-const admin = require('firebase-admin');
+const admin = require('firebase-admin'); 
 
 /* Helpers --------------------------------------------------------------- */
 // simple numeric coercion helper
@@ -50,7 +50,19 @@ const initFirebaseAdmin = () => {
 
 const extractBearerToken = (req) => {
   const auth = req.headers?.authorization || '';
-  if (auth.startsWith('Bearer ')) return auth.slice(7).trim();
+  if (auth.startsWith('Bearer ')) {
+    const token = auth.slice(7).trim();
+    console.log('[BatteryAPI] Bearer token extracted:', {
+      requestId: req.id,
+      hasToken: !!token,
+      tokenLength: token.length,
+    });
+    return token;
+  }
+  console.warn('[BatteryAPI] Missing/invalid Authorization header:', {
+    requestId: req.id,
+    authorizationPrefix: auth ? auth.split(' ')[0] : '(empty)',
+  });
   return '';
 };
 
@@ -66,7 +78,16 @@ const resolveUserFromFirebaseToken = async (firebaseToken) => {
   let decoded;
   try {
     decoded = await admin.auth().verifyIdToken(firebaseToken);
+    console.log('[BatteryAPI] Firebase token verified:', {
+      uid: decoded.uid,
+      aud: decoded.aud,
+      iss: decoded.iss,
+    });
   } catch (e) {
+    console.error('[BatteryAPI] Firebase token verification failed:', {
+      code: e?.code,
+      message: e?.message,
+    });
     const err = new Error('Invalid firebase token');
     err.statusCode = 401;
     throw err;
@@ -85,26 +106,26 @@ const resolveUserFromFirebaseToken = async (firebaseToken) => {
 };
 
 const normalizeIncomingItem = (item) => {
-  const p = item?.payload && typeof item.payload === 'object' ? item.payload : item;
+  const payload = item?.payload && typeof item.payload === 'object' ? item.payload : {};
+  const ts = Number(item?.ts);
+
   return {
     localId: Number.isInteger(item?.localId) ? item.localId : null,
-    email: item?.email || p?.email,
-    moduleId: item?.moduleId || item?.moduleID || item?.batteryId || p?.moduleId || p?.moduleID || p?.batteryId || 'ESP32',
-    batteryName: item?.batteryName || p?.batteryName || null,
-    timestamp: item?.timestamp || p?.timestamp || (item?.ts ? new Date(item.ts).toISOString() : undefined),
-    nominalVoltage: p?.nominalVoltage,
-    capacityWh: p?.capacityWh,
-    minCellVoltage: p?.minCellVoltage,
-    maxCellVoltage: p?.maxCellVoltage,
-    totalBatteryVoltage: p?.totalBatteryVoltage,
-    cellTemperature: p?.cellTemperature,
-    currentAmps: p?.currentAmps,
-    outputVoltage: p?.outputVoltage,
-    stateOfCharge: p?.stateOfCharge,
-    chargingStatus: p?.chargingStatus,
-    cellVoltages: p?.cellVoltages,
+    moduleId: (typeof item?.moduleId === 'string' && item.moduleId.trim()) ? item.moduleId.trim() : 'ESP32',
+    batteryName: item?.batteryName || null,
+    ts: Number.isFinite(ts) ? ts : Date.now(), // epoch ms
+    nominalVoltage: payload?.nominalVoltage,
+    capacityWh: payload?.capacityWh,
+    minCellVoltage: payload?.minCellVoltage,
+    maxCellVoltage: payload?.maxCellVoltage,
+    totalBatteryVoltage: payload?.totalBatteryVoltage,
+    cellTemperature: payload?.cellTemperature,
+    currentAmps: payload?.currentAmps,
+    outputVoltage: payload?.outputVoltage,
+    stateOfCharge: payload?.stateOfCharge,
+    chargingStatus: payload?.chargingStatus,
+    cellVoltages: payload?.cellVoltages,
     rawPayload: item,
-    firebaseToken: item?.firebaseToken || null,
   };
 };
 
@@ -133,7 +154,7 @@ const resolveOrCreateBattery = async (user, data) => {
 
 const buildReadingPayload = (data, batteryId) => ({
   batteryId,
-  timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+  timestamp: new Date(data.ts), // epoch ms from frontend
   nominalVoltage: toNumber(data.nominalVoltage, null),
   capacityWh: toNumber(data.capacityWh, null),
   minCellVoltage: toNumber(data.minCellVoltage, null),
@@ -150,11 +171,9 @@ const buildReadingPayload = (data, batteryId) => ({
   rawPayload: data || null,
 });
 
-const createReading = async (rawItem, requestToken) => {
+const createReading = async (rawItem, authenticatedUser) => {
   const data = normalizeIncomingItem(rawItem);
-  const tokenToUse = data.firebaseToken || requestToken;
-  const user = await resolveUserFromFirebaseToken(tokenToUse);
-  const battery = await resolveOrCreateBattery(user, data);
+  const battery = await resolveOrCreateBattery(authenticatedUser, data);
   const created = await BatteryReading.create(buildReadingPayload(data, battery.id));
   return { created, battery, localId: data.localId };
 };
@@ -167,13 +186,23 @@ const createReading = async (rawItem, requestToken) => {
  */
 const postBatteryReading = async (req, res, next) => {
   try {
-    const isBatch = Array.isArray(req.body?.batch);
-    const items = isBatch ? req.body.batch : [req.body];
-    const requestToken = extractBearerToken(req) || req.body?.firebaseToken || null;
+    const body = req.body;
+    const isBatchObject = Array.isArray(body?.batch);
+    const isRawArray = Array.isArray(body);
+    const items = isBatchObject ? body.batch : (isRawArray ? body : [body]);
+    const isBatch = isBatchObject || isRawArray;
+
+    const requestToken = extractBearerToken(req);
+    if (!requestToken) {
+      return res.status(401).json({ success: false, error: 'Missing bearer token' });
+    }
 
     if (!items.length) {
-      return res.status(400).json({ success: false, error: 'Empty batch payload' });
+      return res.status(400).json({ success: false, error: 'Empty payload' });
     }
+
+    // Verify token once and reuse resolved user for all items
+    const authenticatedUser = await resolveUserFromFirebaseToken(requestToken);
 
     const successLocalIds = [];
     const failures = [];
@@ -184,7 +213,7 @@ const postBatteryReading = async (req, res, next) => {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
       try {
-        const { created, battery, localId } = await createReading(item, requestToken);
+        const { created, battery, localId } = await createReading(item, authenticatedUser);
         createdCount += 1;
         lastCreated = created;
         lastBattery = battery;
@@ -199,6 +228,13 @@ const postBatteryReading = async (req, res, next) => {
         });
       }
     }
+
+    console.log('[BatteryAPI] Processing result:', {
+      requestId: req.id,
+      createdCount,
+      failedCount: failures.length,
+      successLocalIdsCount: successLocalIds.length,
+    });
 
     if (!isBatch) {
       if (!lastCreated) {

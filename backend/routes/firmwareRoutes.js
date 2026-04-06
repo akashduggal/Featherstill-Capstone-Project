@@ -1,33 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/firmwareUpload');
+const adminOnly = require('../middleware/adminAuth');
 const {
   uploadFirmware,
   downloadFirmware,
   getLatestFirmware,
 } = require('./firmwareController');
-
-/**
-    * (Uncomment and implement authentication logic as needed)
-// const adminOnly = (req, res, next) => {
-//   // Check if user is authenticated
-//   if (!req.user) {
-//     return res.status(401).json({
-//       success: false,
-//       error: 'Unauthorized - No authentication token provided',
-//     });
-//   }
-
-//   // Check if user has admin role (adjust based on your User model)
-//   if (req.user.role !== 'admin') {
-//     return res.status(403).json({
-//       success: false,
-//       error: 'Forbidden - Admin privileges required',
-//     });
-//   }
-
-//   next();
-// };
 
 /**
  * POST /api/firmware/upload
@@ -47,8 +26,27 @@ const {
  * - 401: Unauthorized
  * - 403: Forbidden (not admin)
  */
-// router.post('/upload', adminOnly, upload.single('file'), uploadFirmware);
-router.post('/upload', upload.single('file'), uploadFirmware);
+router.post('/upload', adminOnly, upload.single('file'), uploadFirmware);
+
+/**
+ * GET /api/firmware/me
+ * Get admin user details (for frontend admin-check)
+ * 
+ * Response:
+ * - 200: Success
+ * - 401: Unauthorized
+ */
+router.get('/me', adminOnly, (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      id: req.user.id,
+      email: req.user.email,
+      isAdmin: req.user.isAdmin,
+      uid: req.user.uid,
+    },
+  });
+});
 
 /**
  * GET /api/firmware/:version/download
