@@ -72,6 +72,7 @@ export const BLEProvider = ({ children }) => {
   const deviceDisconnectSubscription = useRef(null);
   const { user } = useAuth();
   const otaStatusMonitorSubscription = useRef(null);
+  const negotiatedMtu = useRef(23);
 
   const cleanupConnectionState = () => {
     if (deviceDisconnectSubscription.current) {
@@ -163,6 +164,7 @@ export const BLEProvider = ({ children }) => {
       console.log(`[BLE] Connected to ${connected.name}. Requesting MTU...`);
       const deviceWithHighMTU = await connected.requestMTU(247); // 244 payload + 3 header
       console.log(`[BLE] MTU negotiated to: ${deviceWithHighMTU.mtu}`);
+      negotiatedMtu.current = deviceWithHighMTU.mtu;
 
       if (deviceDisconnectSubscription.current) {
         deviceDisconnectSubscription.current.remove();
@@ -364,7 +366,8 @@ export const BLEProvider = ({ children }) => {
       otaResumeInfo.current = null; // Consume resume info
 
       // 3. Stream firmware chunks using stop-and-wait
-      const chunkSize = 244;
+      const chunkSize = negotiatedMtu.current > 23 ? negotiatedMtu.current - 3 : 20;
+      console.log(`[OTA] Using chunk size: ${chunkSize}`);
       while (offset < firmwareSize) {
         const chunkEnd = Math.min(offset + chunkSize, firmwareSize);
         const chunk = firmware.slice(offset, chunkEnd);
