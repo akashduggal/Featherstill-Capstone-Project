@@ -9,6 +9,7 @@ import {
   BatteryProvider,
   useAuth,
   SettingsProvider,
+  FirmwareUpdateProvider,
 } from '../context';
 import { BLEProvider } from '../context/BLEContext';
 import { initDB, pruneSyncedTelemetry } from '../services/database';
@@ -108,7 +109,9 @@ export default function RootLayout() {
         <SettingsProvider>
           <BatteryProvider>
             <BLEProvider>
-              <RootNavigation setAppReady={setAppReady} />
+              <FirmwareUpdateProvider>
+                <RootNavigation setAppReady={setAppReady} />
+              </FirmwareUpdateProvider>
             </BLEProvider>
           </BatteryProvider>
         </SettingsProvider>

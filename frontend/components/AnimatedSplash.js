@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Dimensions, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 
@@ -54,7 +54,10 @@ export default function AnimatedSplash({ isAppReady, onFinish }) {
   return (
     <Animated.View style={[styles.container, { opacity: fadeOutAnim }]}>
       <Animated.View style={{ transform: [{ scale: pulseAnim }], alignItems: 'center' }}>
-        <Ionicons name="battery-charging" size={80} color="#818CF8" />
+          <Image 
+            source={require('../assets/fetherstill_official_logo.svg')} 
+            style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
+          />
         <Text style={styles.title}>Fetherstill</Text>
         <Text style={styles.subtitle}>BMS Monitor</Text>
       </Animated.View>
