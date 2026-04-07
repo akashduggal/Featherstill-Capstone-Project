@@ -15,7 +15,7 @@ const fetherstillConfig = {
   slug: 'fetherstill',
   version,
   orientation: 'portrait',
-  icon: './assets/icon.png',
+  icon: './assets/fetherstill_official_logo.svg',
   userInterfaceStyle: 'automatic',
   scheme: 'Fetherstill',
   plugins: [
@@ -36,7 +36,7 @@ const fetherstillConfig = {
     './plugins/withIosFirebaseFix.js',
   ],
   splash: {
-    image: './assets/splash-icon.png',
+    image: './assets/fetherstill_official_logo.svg',
     resizeMode: 'contain',
     backgroundColor: '#0F172A',
   },
@@ -55,7 +55,7 @@ const fetherstillConfig = {
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/adaptive-icon.png',
+      foregroundImage: './assets/fetherstill_official_logo.svg',
       backgroundColor: '#ffffff',
     },
     edgeToEdgeEnabled: true,

@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   useColorScheme,
+  Alert,
+  Image,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
@@ -13,8 +15,9 @@ import { useRouter } from "expo-router";
 import { Asset } from 'expo-asset';
 import { File } from 'expo-file-system';
 import { Buffer } from 'buffer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
-import { useAuth, useSettings } from "../../context";
+import { useAuth, useSettings, useFirmwareUpdate } from "../../context";
 import { BLEContext } from "../../context/BLEContext";
 import { Colors } from "../../constants/Colors";
 import VersionDisplay from "../../components/VersionDisplay";
@@ -30,10 +33,20 @@ export default function Settings() {
   const colors = Colors[colorScheme];
   const router = useRouter();
   const { user, logout, isGuest } = useAuth();
+  const { latestFirmwareVersion, updateCheckStatus, checkForUpdates } = useFirmwareUpdate();
   
   // Settings & BLE
   const { autoRefresh, setAutoRefresh, temperatureUnit, setTemperatureUnit } = useSettings();
-  const { previouslyConnectedDevices, disconnectFromDevice, connectedDevice } = React.useContext(BLEContext);
+  const { 
+    previouslyConnectedDevices, 
+    disconnectFromDevice, 
+    connectedDevice,
+    isOtaSupported,
+    startOta,
+    otaStatus,
+    otaProgress,
+    abortOta,
+  } = React.useContext(BLEContext);
 
   const [selectedModuleIndex, setSelectedModuleIndex] = useState(0);
   const [selectedTempUnitIndex, setSelectedTempUnitIndex] = useState(temperatureUnit === 'C' ? 0 : 1);
@@ -43,14 +56,34 @@ export default function Settings() {
     setTemperatureUnit(index === 0 ? 'C' : 'F');
   };
 
-  const {
-    isOtaSupported,
-    startOta,
-    otaStatus,
-    otaProgress,
-    abortOta,
-  } = React.useContext(BLEContext);
   const [isOtaModalVisible, setIsOtaModalVisible] = useState(false);
+  const [currentFirmwareVersion, setCurrentFirmwareVersion] = useState(null);
+
+  useEffect(() => {
+    const loadCurrentVersion = async () => {
+      const storedVersion = await AsyncStorage.getItem('firmwareVersion');
+      if (storedVersion) {
+        setCurrentFirmwareVersion(storedVersion);
+      }
+    };
+    loadCurrentVersion();
+    checkForUpdates();
+  }, []);
+
+  const handleClearFirmwareVersion = async () => {
+    try {
+      await AsyncStorage.removeItem('firmwareVersion');
+      setCurrentFirmwareVersion(null);
+      Toast.show({
+        type: 'success',
+        text1: 'Firmware Version Cleared',
+        text2: 'The stored firmware version has been reset.',
+      });
+    } catch (error) {
+      console.error('Failed to clear firmware version:', error);
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Could not clear firmware version.' });
+    }
+  };
 
   useEffect(() => {
     if (otaStatus === 'success') {
@@ -66,28 +99,44 @@ export default function Settings() {
 
   const handleOtaUpdate = async () => {
     if (!isOtaSupported) {
-      console.log('OTA is not supported on this device.');
+      Toast.show({ type: 'error', text1: 'OTA not supported on this device.' });
+      return;
+    }
+
+    // Re-check on button press to ensure we have the absolute latest version info
+    await checkForUpdates();
+
+    if (latestFirmwareVersion && latestFirmwareVersion === currentFirmwareVersion) {
+      Toast.show({
+        type: 'info',
+        text1: 'No Update Available',
+        text2: 'You already have the latest firmware version.',
+      });
       return;
     }
 
     setIsOtaModalVisible(true);
     console.log('Starting OTA update process...');
-    // return
-    try {
-      console.log('Loading firmware asset...');
-      const asset = Asset.fromModule(require('../../assets/BLE_Step1.bin'));
-      await asset.downloadAsync();
-      console.log('Firmware asset downloaded to:', asset.localUri);
 
-      console.log('Reading firmware file using the new File API...');
-      const file = new File(asset.localUri);
-      const fileContent = await file.arrayBuffer();
+    try {
+      console.log(`Downloading firmware version ${latestFirmwareVersion}...`);
+      const firmwareResponse = await fetch(`http://192.168.0.168:3000/api/firmware/${latestFirmwareVersion}/download`);
+      if (!firmwareResponse.ok) {
+        throw new Error(`Failed to download firmware: ${firmwareResponse.statusText}`);
+      }
+      
+      const fileContent = await firmwareResponse.arrayBuffer();
       const firmware = Buffer.from(fileContent);
       console.log(`Firmware loaded. Size: ${firmware.length} bytes.`);
 
-      await startOta(firmware);
+      await startOta(firmware, latestFirmwareVersion);
+      setCurrentFirmwareVersion(latestFirmwareVersion);
     } catch (error) {
       console.error('OTA update failed:', error);
+      // The modal will show a generic error, but we can also toast
+      Toast.show({ type: 'error', text1: 'OTA Failed', text2: error.message });
+      // Close the modal on failure
+      setIsOtaModalVisible(false);
     }
   };
 
@@ -123,9 +172,10 @@ export default function Settings() {
       style={[styles.safeArea, { backgroundColor: colors.background }]}
     >
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-        <View style={[styles.logoContainer, { borderColor: colors.cardBorder, backgroundColor: colors.surface }]}>
-          <Ionicons name="shield-checkmark" size={48} color={colors.tint} />
-        </View>
+          <Image 
+            source={require('../../assets/fetherstill_official_logo.svg')} 
+            style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
+          />
 
         <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
         <Text style={[styles.userText, { color: colors.icon }]}>
@@ -182,13 +232,30 @@ export default function Settings() {
             colors={colors}
           /> */}
           {isOtaSupported && (
-            <ActionButton
-              title="Start OTA Update"
-              icon="cloud-upload-outline"
-              onPress={handleOtaUpdate}
-              colors={colors}
-            />
-          )}
+            <>
+              <View style={{alignItems: 'center', width: '100%'}}>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
+                  Current Version: {currentFirmwareVersion || 'N/A'}
+                </Text>
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
+                  Latest Version: {updateCheckStatus === 'checking' ? 'Checking...' : latestFirmwareVersion || 'N/A'}
+                </Text>
+              </View>
+              <ActionButton
+                title="Update Firmware"
+                icon="cloud-upload-outline"
+                onPress={handleOtaUpdate}
+                colors={colors}
+                disabled={!latestFirmwareVersion || latestFirmwareVersion === currentFirmwareVersion}
+              />
+                <ActionButton
+                  title="Clear Firmware Version"
+                  icon="trash-outline"
+                  onPress={handleClearFirmwareVersion}
+                  colors={colors}
+                />
+              </>
+            )}
           {connectedDevice && (
             <ActionButton
               title="Disconnect Module"

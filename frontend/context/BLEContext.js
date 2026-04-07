@@ -299,7 +299,7 @@ export const BLEProvider = ({ children }) => {
     }
   };
 
-  const startOta = async (firmware) => {
+  const startOta = async (firmware, version) => {
     if (!isOtaSupported || !otaCharacteristics.current.control || !otaCharacteristics.current.status || !otaCharacteristics.current.data) {
       console.error('[OTA] Error: OTA not supported or characteristics not found.');
       setOtaStatus('error');
@@ -400,6 +400,7 @@ export const BLEProvider = ({ children }) => {
       // 5. Wait for SUCCESS
       await waitForStatus(s => s === 'SUCCESS');
       console.log('[OTA] SUCCESS! OTA completed. Device will reboot.');
+      await AsyncStorage.setItem('firmwareVersion', version);
       setOtaStatus('success');
       otaRebootExpected.current = true;
 
