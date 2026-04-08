@@ -172,7 +172,7 @@ export default function Settings() {
     >
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
           <Image 
-            source={require('../../assets/fetherstill_official_logo.svg')} 
+            source={require('../../assets/fetherstill_official_logo.png')} 
             style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
           />
 

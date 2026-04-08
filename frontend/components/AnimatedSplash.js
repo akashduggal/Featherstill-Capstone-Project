@@ -55,7 +55,7 @@ export default function AnimatedSplash({ isAppReady, onFinish }) {
     <Animated.View style={[styles.container, { opacity: fadeOutAnim }]}>
       <Animated.View style={{ transform: [{ scale: pulseAnim }], alignItems: 'center' }}>
           <Image 
-            source={require('../assets/fetherstill_official_logo.svg')} 
+            source={require('../assets/fetherstill_official_logo.png')} 
             style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
           />
         <Text style={styles.title}>Fetherstill</Text>
