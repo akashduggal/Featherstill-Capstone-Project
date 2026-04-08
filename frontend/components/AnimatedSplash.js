@@ -59,7 +59,7 @@ export default function AnimatedSplash({ isAppReady, onFinish }) {
             style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
           />
         <Text style={styles.title}>Fetherstill</Text>
-        <Text style={styles.subtitle}>BMS Monitor</Text>
+        <Text style={styles.subtitle}>A Battery Energy Technology Company</Text>
       </Animated.View>
     </Animated.View>
   );

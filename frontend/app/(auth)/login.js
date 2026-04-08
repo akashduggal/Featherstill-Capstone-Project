@@ -8,7 +8,8 @@ import {
     useColorScheme,
     Dimensions,
     Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -60,14 +61,13 @@ export default function LoginScreen() {
             <View style={styles.headerSection}>
                 {/* Fallback for missing surfaceElevated: use background with border or just background */}
                 <View style={[styles.logoContainer, { backgroundColor: colors.background, borderColor: colors.tabIconDefault, borderWidth: 1 }]}>
-                    <Ionicons name="flash" size={48} color={colors.tint} />
+                    <Image 
+                        source={require('../../assets/fetherstill_official_logo.png')} 
+                        style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
+                    />
                 </View>
-
-                <Text style={[styles.brandTitle, { color: colors.text }]}>
-                    Fetherstill
-                </Text>
                 <Text style={[styles.brandSubtitle, { color: colors.tabIconDefault }]}>
-                    BMS Monitor
+                    A Battery Energy Technology Company
                 </Text>
             </View>
 
@@ -129,6 +129,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 60,
+        gap: 20
     },
     logoContainer: {
         width: 100,
