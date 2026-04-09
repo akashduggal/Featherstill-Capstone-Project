@@ -51,6 +51,17 @@ export default function DebugScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.icon} />
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.menuItem, { borderBottomWidth: 0 }]} 
+          onPress={() => router.push('/asyncStorageInspector')}
+        >
+          <View style={styles.menuItemLeft}>
+            <Ionicons name="layers-outline" size={24} color={theme.warning || '#f59e0b'} />
+            <Text style={styles.menuText}>Async Storage Inspector</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.icon} />
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
