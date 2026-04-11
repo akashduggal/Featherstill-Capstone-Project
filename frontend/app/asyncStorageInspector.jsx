@@ -7,7 +7,9 @@ import {
   useColorScheme, 
   ActivityIndicator, 
   RefreshControl ,
-  ScrollView
+  ScrollView,
+  TouchableOpacity,
+  Alert
 } from 'react-native';
 import { Stack } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -51,6 +53,29 @@ export default function AsyncStorageInspectorScreen() {
     setRefreshing(true);
     fetchStorageData();
   }, []);
+
+  const handleClearStorage = () => {
+    Alert.alert(
+      "Clear Async Storage",
+      "Are you sure you want to wipe all local keys?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Wipe Data", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await AsyncStorage.clear();
+              fetchStorageData(); 
+            } catch (error) {
+              console.error("Failed to clear storage:", error);
+              Alert.alert("Error", "Failed to clear local storage.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
 const formatStorageValue = (value) => {
     if (value === '') return '"" (Empty String)';
@@ -115,6 +140,15 @@ const formatStorageValue = (value) => {
           }
         />
       )}
+      <View style={styles.footer}>
+        <TouchableOpacity 
+          style={styles.clearButton} 
+          onPress={handleClearStorage}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.clearButtonText}>Clear All Storage</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -168,5 +202,28 @@ const getStyles = (theme) => StyleSheet.create({
     color: theme.text,
     fontFamily: 'Courier', 
     opacity: 0.8,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingBottom: 32, 
+    backgroundColor: theme.surface, 
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.cardBorder,
+  },
+  clearButton: {
+    backgroundColor: theme.error || '#ef4444', 
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold',
   }
 });
