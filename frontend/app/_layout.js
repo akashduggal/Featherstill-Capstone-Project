@@ -87,6 +87,7 @@ const RootNavigation = ({ setAppReady }) => {
       <Stack.Screen name='debug' options={{ headerShown: true }} />
       <Stack.Screen name='sqliteInspector' options={{ headerShown: true }} />
       <Stack.Screen name='networkLogger' options={{ headerShown: true }} />
+      <Stack.Screen name='asyncStorageInspector' options={{ headerShown: true }} />
     </Stack>
   );
 };

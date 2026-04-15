@@ -57,7 +57,7 @@ export const SettingsDropdown = ({
                     styles.dropdown,
                     {
                         backgroundColor: colors.surface,
-                        borderColor: open ? colors.tint : colors.success,
+                        borderColor: open ? colors.tint : colors.cardBorder,
                     },
                 ]}
             >
