@@ -25,8 +25,8 @@ function tempColor(temp) {
  */
 export const ThermometerIcon = ({
     temperature,
-    minTemp = 0, // In C
-    maxTemp = 60, // In C
+    minTemp = 0, // Base scale minimum in Celsius
+    maxTemp = 60, // Base scale maximum in Celsius
     isFahrenheit = false,
     colors,
 }) => {
@@ -35,13 +35,29 @@ export const ThermometerIcon = ({
     const bulbSize = 14;
     const borderW = 1.5;
 
-    const baseMin = isFahrenheit ? (minTemp * 9 / 5) + 32 : minTemp;
-    const baseMax = isFahrenheit ? (maxTemp * 9 / 5) + 32 : maxTemp;
-    // Normalized temps in C purely for color calculation
+    // 1. Explicitly define boundaries in both units
+    const minC = minTemp;
+    const maxC = maxTemp;
+    
+    // F = (C * 9/5) + 32
+    const minF = (minC * 9 / 5) + 32;
+    const maxF = (maxC * 9 / 5) + 32;
+
+    // 2. Select the correct active range bounds based on selected unit
+    const activeMin = isFahrenheit ? minF : minC;
+    const activeMax = isFahrenheit ? maxF : maxC;
+
+    // 3. Normalize the current temperature value back to Celsius strictly for the color picker
+    // C = (F - 32) * 5/9
     const tempInC = isFahrenheit ? (temperature - 32) * 5 / 9 : temperature;
 
-    const clamped = Math.max(baseMin, Math.min(baseMax, temperature));
-    const fillPct = ((clamped - baseMin) / (baseMax - baseMin)) * 100;
+    // 4. Calculate fill percentage purely within the active unit's range bounds
+    const clamped = Math.max(activeMin, Math.min(activeMax, temperature));
+    let fillPct = ((clamped - activeMin) / (activeMax - activeMin)) * 100;
+    
+    // Fallback safety to ensure it doesn't break SVG/View height constraints
+    if (isNaN(fillPct)) fillPct = 0;
+
     const fillH = ((tubeH - borderW * 2 - 2) * fillPct) / 100;
     const color = tempColor(tempInC);
 

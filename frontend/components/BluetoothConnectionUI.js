@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { View, FlatList, PermissionsAndroid, Platform, StyleSheet, ActivityIndicator, TouchableOpacity, Text } from 'react-native';
+import { View, FlatList, PermissionsAndroid, Platform, StyleSheet, ActivityIndicator, TouchableOpacity, Text, useColorScheme } from 'react-native';
 import { BLEContext } from '../context/BLEContext';
 import { Typography } from './Typography';
 import { Button } from './Button';
@@ -41,8 +41,8 @@ export const BluetoothConnectionUI = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
-  const theme = "dark";
-  const colors = Colors[theme];
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
 
   const getBleErrorUserMessage = (error) => {
     if (!error || !error.reason) {
