@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
+  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
@@ -25,8 +26,8 @@ import {
 } from "../../components";
 
 export default function Settings() {
-  const theme = "dark";
-  const colors = Colors[theme];
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
   const router = useRouter();
   const { user, logout, isGuest } = useAuth();
   
