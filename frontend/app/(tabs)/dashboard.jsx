@@ -6,6 +6,7 @@ import {
   StyleSheet,
   RefreshControl,
   Alert,
+  useColorScheme,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from "../../constants/Colors";
@@ -45,8 +46,8 @@ const THRESHOLDS = {
 };
 
 export default function Dashboard() {
-  const theme = "dark";
-  const colors = Colors[theme];
+  const colorScheme = useColorScheme() ?? 'dark';
+  const colors = Colors[colorScheme];
 
   const bleCtx = useContext(BLEContext) || {};
   const telemetryData = bleCtx.telemetryData || null;
@@ -189,7 +190,7 @@ export default function Dashboard() {
   } else if (d.cellTemperature < THRESHOLDS.TEMP_MIN) {
     activeAlerts.push({
       id: 'temp-low',
-      level: 'warning',
+      level: 'info',
       title: 'Temperature Too Low',
       detail: `Battery is too cold (${tempString}). Warming up recommended.`
     });
@@ -198,7 +199,7 @@ export default function Dashboard() {
   if (d.stateOfCharge <= THRESHOLDS.SOC_WARNING_MIN) {
      activeAlerts.push({
         id: 'soc-low',
-        level: 'warning',
+        level: 'error',
         title: 'Low Battery',
         detail: `State of Charge is at ${d.stateOfCharge}%. Please recharge soon.`
      });
@@ -309,7 +310,6 @@ export default function Dashboard() {
                 title={alert.title}
                 detail={alert.detail}
                 level={alert.level}
-                colors={colors}
               />
             ))}
           </View>
