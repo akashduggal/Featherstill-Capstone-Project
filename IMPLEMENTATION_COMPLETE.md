@@ -84,7 +84,6 @@ backend/
 │   ├── index.js              # Centralized config
 │   └── database.js           # Sequelize connection
 ├── middleware/
-│   ├── validation.js         # Input validation
 │   ├── errorHandler.js       # Error handling
 │   └── logging.js            # Request logging
 ├── models/
@@ -158,37 +157,6 @@ GET /api/battery-readings/:email
 GET /api/battery-readings/:email/latest
   └─ Returns: { success: true, data: { ... } }
   └─ Purpose: Get most recent reading
-```
-
----
-
-## 🧪 Testing Examples
-
-```bash
-# Health check
-curl http://localhost:3000/health
-
-# POST reading
-curl -X POST http://localhost:3000/api/battery-readings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email":"user@example.com",
-    "batteryId":"primary-battery",
-    "totalBatteryVoltage":57.44,
-    "cellTemperature":37.0,
-    "currentAmps":-19.83,
-    "stateOfCharge":100,
-    "chargingStatus":"INACTIVE",
-    "cellVoltages":[3.58,3.6,3.59,3.59,3.6,3.60,3.62,3.62,3.59,3.58,3.57,3.58,3.59,3.58,3.58,3.6]
-  }'
-
-# Get readings
-curl http://localhost:3000/api/battery-readings/user@example.com
-
-# Get latest
-curl http://localhost:3000/api/battery-readings/user@example.com/latest
-```
-
 ---
 
 ## 📊 Database Schema
@@ -246,143 +214,117 @@ Indexes: batteryId, createdAt
 
 ---
 
-## 📝 Documentation Files
+## End-to-end Flows (OTA and Telemetry)
 
-| File | Purpose |
-|------|---------|
-| `backend/README.md` | Full API documentation & setup guide |
-| `BACKEND_IMPLEMENTATION.md` | Implementation overview & quick start |
-| `BACKEND_SUMMARY.md` | Complete summary of all components |
-| `QUICK_REFERENCE.md` | Quick commands & troubleshooting |
+This section documents the precise runtime flows and API contracts for:
+- Telemetry ingestion (device → mobile app → backend)
+- OTA distribution (admin web → backend → mobile app → device)
 
----
+Keep responsibilities strict: mobile/frontends authenticate with Firebase ID tokens; backend verifies tokens and is the source of truth for user/admin rights.
 
-## 🎯 Next Immediate Actions
+### Telemetry ingestion flow (end-to-end)
 
-1. **Test locally** (5 min)
-   ```bash
-   npm run dev
-   bash backend/test-api.sh
-   ```
+Actors:
+- Device (ESP32 BMS) — emits BLE telemetry packets
+- Mobile App (React Native) — collects via BLE, buffers locally (SQLite), batches uploads
+- Backend (Express) — verifies token, resolves user/battery, persists readings
+- Postgres — stores normalized readings (battery_readings)
 
-2. **Push to GitHub** (2 min)
-   ```bash
-   git add .
-   git commit -m "feat: add backend implementation"
-   git push origin feat/ec2_setup
-   ```
+Sequence (high-level):
+1. Device streams telemetry over BLE to Mobile App.
+2. Mobile App parses packets, formats BMS payload, and inserts into local SQLite table `telemetry`:
+   - Stored row shape: { id, ts (epoch ms), payload: JSON.stringify({ moduleId: "ESP32", payload: {...} }), synced: 0 }
+3. Every sync interval (or on app resume), Mobile App calls:
+   - POST { batch: [ { localId, moduleId, ts, payload } ] } to `${API}/api/battery-readings`
+   - Header: Authorization: Bearer <Firebase-ID-Token>
+4. Backend (`/api/battery-readings`) checks Bearer token once:
+   - verifyIdToken() via Firebase Admin SDK
+   - resolve email from token → lookup `users` table
+   - if user missing → create guest user row
+5. For each batch item:
+   - normalize item (moduleId default "ESP32", ts epoch ms)
+   - resolve/create Battery row: unique (userId, moduleId)
+   - create BatteryReading row with timestamp = new Date(ts) and telemetry fields
+6. Backend returns:
+   - 200 { success:true, data: { received, createdCount, failedCount, successLocalIds: [ localId... ], failures } }
+7. Mobile App marks only `successLocalIds` as synced in SQLite (synced = 1) and prunes synced rows as needed.
 
-3. **Create RDS PostgreSQL** (15 min)
-   - AWS Console → RDS
-   - PostgreSQL 15, db.t3.micro
-   - Database: featherstill
+Minimal API contract (telemetry):
+- Request: POST /api/battery-readings
+  - Headers: Authorization: Bearer <idToken>
+  - Body: { batch: [ { localId: number, moduleId: string, ts: number (epoch ms), payload: { /* battery values */ } } ] }
+- Successful response: 200 JSON with data.successLocalIds
 
-4. **Deploy to EC2** (10 min)
-   - Pull code from GitHub
-   - Update .env with RDS credentials
-   - `pm2 start ecosystem.config.js`
+Notes:
+- Backend must never rely on client-supplied email — always derive identity from Firebase token.
+- Mobile must send the token in the Authorization header (not in body) for each batch request.
+- Batch size and retry policy: mobile sends all unsynced rows in one batch; backend processes items idempotently (unique constraint per battery+timestamp if added later).
 
-5. **Update Frontend** (5 min)
-   - Change `frontend/config/api.js`
-   - Update `BASE_URL` to EC2 IP
+### OTA flow (admin → device)
 
-6. **Test End-to-End** (5 min)
-   - Open app on phone
-   - Press "Send Test Reading"
-   - Verify POST succeeds in logs
+Actors:
+- Admin Web (React) — Google sign-in, admin-check, firmware upload
+- Backend — firmware storage, metadata, download endpoint
+- Mobile App — checks backend for latest firmware, downloads binary, performs BLE OTA to device
+- Device (ESP32) — receives OTA chunks over BLE (OTA control/data/status characteristics)
 
----
+Sequence (high-level):
+1. Admin Web authenticates with Firebase (Google sign-in).
+2. Admin Web calls GET /api/firmware/me (Authorization: Bearer <idToken>).
+   - Backend verifies token and checks `users.isAdmin` from `users` table; returns 200 if admin.
+3. Admin Web uploads firmware (multipart/form-data) to POST /api/firmware/upload with:
+   - file: .bin
+   - version: semantic version (x.y.z)
+   - changelog: optional
+   - Header: Authorization: Bearer <idToken>
+4. Backend `uploadFirmware` saves file to storage directory (backend/storage/firmware), computes SHA256, records metadata in `Firmware` model:
+   - fields: version, filename, file_hash, file_size, changelog, is_active, created_at
+5. Mobile App (or admin device) can query:
+   - GET /api/firmware/latest?moduleId=ESP32
+   - Response: metadata (version, file_hash, file_size, download_url)
+6. Mobile downloads the binary from:
+   - GET /api/firmware/:version/download
+   - Backend streams file and sets headers: X-File-Hash, X-Firmware-Version
+7. Mobile performs OTA to the connected device via BLE:
+   - Mobile acts as OTA client using BLE characteristics:
+     - OTA_CONTROL (start/finish/abort) — start contains firmware size; finish signals end
+     - OTA_DATA — stream firmware chunks (stop-and-wait with ACKs)
+     - OTA_STATUS — device notifies READY/ACK:offset/SUCCESS/ERROR messages
+   - Mobile's BLEContext.startOta implements:
+     - resume support: read initial status char for "RESUME_AT:chunkCount:bytesReceived"
+     - start: send START command with firmware size, wait for READY
+     - stream 244-byte chunks using writeWithoutResponse and wait for ACK via status monitor
+     - on FINISH, wait for SUCCESS; handle ABORT and retries
+8. Device validates data (checksum/offsets) and reboots into new firmware.
 
-## 📊 Status Summary
+Minimal API contract (OTA):
+- Admin check: GET /api/firmware/me
+  - Headers: Authorization: Bearer <idToken>
+  - Response: 200 { data: { email, isAdmin, id } } or 403
+- Upload: POST /api/firmware/upload (adminOnly)
+  - Headers: Authorization: Bearer <idToken>
+  - Body: multipart with `file`, `version`, `changelog`
+  - Response: 201 with new firmware metadata
+- Latest metadata: GET /api/firmware/latest?moduleId=ESP32
+  - Response: 200 { version, file_hash, file_size, download_url }
+- Download: GET /api/firmware/:version/download
+  - Response: octet-stream + headers X-File-Hash, X-Firmware-Version
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| **Express Server** | ✅ Complete | Running on port 3000 |
-| **Models** | ✅ Complete | User, Battery, Reading |
-| **Controllers** | ✅ Complete | POST, GET, GET latest |
-| **Validation** | ✅ Complete | All fields validated |
-| **Error Handling** | ✅ Complete | Centralized middleware |
-| **Logging** | ✅ Complete | Request IDs & timing |
-| **Documentation** | ✅ Complete | 4 guide files |
-| **Testing** | ✅ Complete | test-api.sh script |
-| **Database** | 🟡 Pending | Need RDS setup |
-| **EC2 Deployment** | 🟡 Pending | Need to push & deploy |
-| **Frontend Integration** | 🟡 Pending | Need URL update |
+Operational notes
+- Secure endpoints with HTTPS and exact CORS origin for admin UI.
+- Keep firmware storage directory backed up and ensure sufficient disk.
+- Enforce file size limits in multer middleware and validate semantic version on upload.
+- Track upload audit: who uploaded (email/uid), version, size, timestamp (store in DB `Firmware` table).
 
----
+### Debugging checklist for OTA / Telemetry
+- Telemetry:
+  - Mobile logs show token fetch & `batchCount`
+  - Backend logs show Firebase token verification success and `createdCount`
+  - DB contains battery and battery_readings rows with timestamps from device
+  - SQLite rows get marked synced only for `successLocalIds`
+- OTA:
+  - Admin upload returns 201 and file saved at `backend/storage/firmware/<version>.bin`
+  - GET /api/firmware/latest returns current metadata
+  - Mobile downloads file; header X-File-Hash matches computed hash
+  - BLE OTA logs display READY, ACK, SUCCESS; device reboots with new firmware
 
-## 🎓 What You Have Now
-
-A **production-ready backend** that:
-- ✅ Runs on Express.js
-- ✅ Connects to PostgreSQL via Sequelize
-- ✅ Validates all input data
-- ✅ Handles errors gracefully
-- ✅ Logs all requests & responses
-- ✅ Supports multiple users & batteries
-- ✅ Stores time-series battery data
-- ✅ Is ready to scale on AWS
-
----
-
-## 🚀 You're 30% of the Way to Production!
-
-**Completed:**
-- ✅ Frontend (React Native, BLE, Firebase Auth)
-- ✅ Backend API structure
-- ✅ Database models & schema
-- ✅ API endpoints
-- ✅ Validation & error handling
-
-**In Progress:**
-- 🟡 Local testing
-- 🟡 GitHub integration
-- 🟡 RDS PostgreSQL setup
-- 🟡 EC2 deployment
-- 🟡 End-to-end testing
-
-**Next:**
-- 🟠 HTTPS/SSL setup
-- 🟠 Monitoring & logging
-- 🟠 Database backups
-- 🟠 Rate limiting
-
----
-
-## ✅ Verification Checklist
-
-- [ ] Backend code is all created
-- [ ] `npm install` runs without errors
-- [ ] `npm run dev` starts server
-- [ ] Health check endpoint responds
-- [ ] Can POST battery reading
-- [ ] Validation works (test invalid data)
-- [ ] All tests pass in test-api.sh
-- [ ] Logs show "[Battery API]" messages
-- [ ] No database errors (expected without DB)
-- [ ] Ready to push to GitHub
-
----
-
-## 🎉 Congratulations!
-
-You now have a **complete, professional Express.js backend** ready for:
-- Local development & testing
-- GitHub version control
-- AWS EC2 deployment
-- RDS PostgreSQL integration
-- React Native frontend integration
-
-All code is:
-- ✅ Well-organized
-- ✅ Well-documented
-- ✅ Well-tested
-- ✅ Production-ready
-
-**Next step**: Run `npm run dev` and test locally! 🚀
-
----
-
-*Created: March 3, 2026*  
-*Version: 1.0.0*  
-*Status: Production Ready*
