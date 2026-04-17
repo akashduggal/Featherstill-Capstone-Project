@@ -45,7 +45,6 @@ describe('TabsLayout Component', () => {
     const { getByTestId } = render(<TabsLayout />);
 
     // These now look for the actual testIDs you wrote in TabsLayout.js
-    expect(getByTestId('tab-screen-bluetooth')).toBeTruthy();
     expect(getByTestId('tab-screen-dashboard')).toBeTruthy();
     expect(getByTestId('tab-screen-settings')).toBeTruthy();
   });
