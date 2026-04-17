@@ -1,40 +1,33 @@
 # Fetherstill Design System
 
 ## 1. Design Principles
-* **Dark-First:** The interface is designed primarily for dark mode to reduce glare in outdoor/golf-cart environments.
+* **Adaptive Theming:** The interface respects the user's OS preference via dynamic light and dark mode mappings (`useColorScheme`).
 * **Data-Centric:** Telemetry data is the hero. It must be legible and high-contrast.
-* **Feedback-Oriented:** Users should always know the system status via clear visual indicators.
+* **Ambient Alerting:** Users should intuitively recognize hardware state via color psychology (Red = Danger, Yellow = Imbalance, Blue = Under-temp).
 
 ---
 
-## 2. Color Palette (Updated)
+## 2. Color Palette & Dynamic Themes
 
-### Primary Colors
-* **Brand Tint (Indigo):** **`#6366F1` (Light) / `#818CF8` (Dark)**
-    * *Usage:* Primary Buttons, Active Tab Icons, Links, "Active" states.
-    * *Note:* Replaces the previous Brand Green.
-* **Background Dark:** **`#0F172A`**
-    * *Usage:* Main Screen Backgrounds (matches `Colors.dark.background`).
-* **Surface / Card:** **`#1E293B`**
-    * *Usage:* Cards, List Items, Bottom Navigation Bar (matches `Colors.dark.card`).
-* **Card Border:** **`#334155`**
-    * *Usage:* Dividers and Card Borders.
+The app utilizes `React Native`'s `useColorScheme()` to dynamically swap between `light` and `dark` palettes defined in `constants/Colors.js`.
 
-### Functional Colors
-* **Success:** **`#34D399`**
-    * *Usage:* "Connected" status, Full Battery, Safe values.
-* **Error / Danger:** **`#F87171`**
-    * *Usage:* Sign Out Button, "Disconnect" actions, Critical Alerts.
-* **Warning:** **`#FBBF24`**
-    * *Usage:* Low Battery Warning, Weak Signal Strength.
-* **Info:** **`#60A5FA`**
-    * *Usage:* Informational toasts or hints.
+### Primary Global Tokens
+* **Brand Tint (Indigo):** `#6366F1` (Light) / `#818CF8` (Dark)
+    * *Usage:* Primary Buttons, Active Tab Icons, Links.
+* **Background:** `#F8FAFC` (Light) / `#0F172A` (Dark)
+    * *Usage:* Main Screen Backgrounds.
+* **Surface / Card Node:** `#FFFFFF` (Light) / `#1E293B` (Dark)
+    * *Usage:* Data Cards, Modals, Tab Bars.
+* **Borders / Separators:** `#E2E8F0` (Light) / `#334155` (Dark)
 
-### Typography Colors
-* **Text Primary:** **`#F1F5F9`**
-    * *Usage:* Headings, Primary Data Values (matches `Colors.dark.text`).
-* **Text Secondary / Icon:** **`#94A3B8`**
-    * *Usage:* Labels, Descriptions, Unfocused inputs (matches `Colors.dark.icon`).
+### Alert Color Palettes (Telemetry Alert Engine)
+Warnings have been overhauled into solid, readable blocks matching payload contexts:
+* **Critical (Error):** Deep Red (`#7F1D1D`) background with Bright Red (`#EF4444`) boundaries.
+    * *Usage:* Overvoltage, Battery Too Hot, Deep Discharge.
+* **Warning (Imbalance/Under-Voltage):** Deep Yellow (`#3D3000`) background with Yellow (`#EAB308`) boundaries.
+    * *Usage:* High Cell Delta/Imbalance, Cell approaching discharge.
+* **Info (Cold):** Deep Blue (`#1E3A5F`) background with Blue (`#3B82F6`) boundaries.
+    * *Usage:* Sensor temps below 0°C.
 
 ---
 
@@ -52,60 +45,52 @@
 
 ---
 
-## 4. Components & Elements
+## 4. Components & Interactive Elements
 
-### A. Buttons
-**1. Primary Button**
-* **Background:** **Brand Tint (`#818CF8`)**
-* **Text:** White (`#FFFFFF`), Bold
-* **Radius:** 12px (Updated for modern feel)
-* **Usage:** "Sign In", "Connect", "Save Changes"
+### A. Action Buttons
+**1. Solid Primary Button**
+* **Background:** Theme Tint (`#818CF8`)
+* **Text:** Always Light (`#FFFFFF`), Bold
+* **Radius:** 12px (Premium modern feel)
+* **Loading State:** Replaces text with a centered `ActivityIndicator`.
 
-**2. Secondary / Outline Button**
+**2. Outline / Secondary Action**
 * **Background:** Transparent
-* **Border:** 1px Solid **Card Border (`#334155`)**
-* **Text:** **Brand Tint (`#818CF8`)**
-* **Usage:** "Scan", "Sign Out"
+* **Border:** 1px Solid Card Border
+* **Text:** Theme Tint
+* **Usage:** "Disconnect", "Scan"
 
-### B. Cards (Data Containers)
-* **Background:** **Surface (`#1E293B`)**
-* **Border:** 1px Solid **Card Border (`#334155`)**
-* **Border Radius:** 16px
-* **Padding:** 16px
-* **Shadow:** None (Flat design) or Low elevation
-* **Usage:** Summary Card, Individual Device List Items.
+### B. Hardware Visualization (SVG)
+**1. Thermometer SVG Block (`ThermometerIcon.js`)**
+* Mathematically rigid boundaries corresponding to `0-60°C` and `32-140°F`.
+* Height scales dynamically with fill ratio.
+* Mercury color transitions functionally (Blue -> Green -> Orange -> Red) as raw data scales.
 
-### C. Data Visualization
-**1. Progress Bar (State of Charge)**
-* **Track:** Dark Slate (`#334155`)
-* **Indicator:** **Success Green (`#34D399`)**
-    * *Note:* While the brand is Indigo, battery status should still utilize Green/Yellow/Red for universal understanding.
-* **Height:** 12px (Rounded ends)
+**2. State of Charge Matrix**
+* Dynamic internal battery sizing based on calculated SoC percentage limits (`d.stateOfCharge`).
 
-**2. Voltage Grid Item**
-* **Container:** Small rectangular box, **Surface Elevated (`#334155`)**.
-* **Label:** "V1" (Text Secondary).
-* **Value:** "3.58 V" (Text Primary).
+### C. Data Container Cards
+* **Core Padding:** 16px inset.
+* **Radius:** Layouts map exactly to 16px corner limits.
+* **Separators:** 1px width, standardizing visual list breaks.
 
-### D. Navigation
-**1. Bottom Tab Bar**
-* **Background:** **Surface (`#1E293B`)**
-* **Active Tint:** **Brand Tint (`#818CF8`)**
-* **Inactive Tint:** **Text Secondary (`#94A3B8`)**
-* **Border:** Top border 1px solid **Card Border (`#334155`)**
+### D. Navigation Nodes (Tabs)
+* Uses `expo-router` bottom bars.
+* Background dynamically fills surface themes (`#1E293B` or `#ffffff`).
+* Top border caps using identical card border tokens to prevent visual bleeding.
 
 ---
 
-## 5. Spacing & Layout
+## 5. Spacing & Grid System
 * **Base Unit:** 4px
-* **Screen Padding:** 16px or 24px
-* **Component Gap:** 16px
-* **Corner Radius:** * Cards: 16px
-    * Buttons: 12px
+* **Screen Padding:** 16px horizontally.
+* **List Row Gaps:** 12px.
+* **Corner Geometry:** 
+    * Modular Containers: 16px
+    * Active Elements (Buttons): 12px
 
-## 6. Icons (Vector)
-* *Library:* `Ionicons`
+## 6. Icon Libraries
+* *Library:* `Ionicons` (via `@expo/vector-icons`)
 * **Dashboard:** `speedometer-outline`
 * **Settings:** `settings-outline`
-* **Bluetooth:** `bluetooth` / `bluetooth-outline`
-* **Brand Logo:** `flash` (Indigo color)
+* **Alert States:** `warning`, `alert-circle`, `information-circle`
