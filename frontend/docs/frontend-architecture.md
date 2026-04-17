@@ -18,31 +18,31 @@ This document is intended to serve as a living reference and will evolve as impl
 ## Technology Stack
 
 ### Mobile Framework
-- **React Native**
+- **React Native & Expo (SDK 55)**
   - Cross-platform support (iOS & Android)
+  - File-based navigation via **Expo Router**
 
-### Authentication
-- **Firebase Authentication**
-  - Username/password-based authentication
+### Core Services
+- **Data Persistence & Offline Syncing**: `expo-sqlite` (Local queues for fault-tolerant batch sync)
+- **Bluetooth/IoT Communication**: `react-native-ble-plx`
+- **Firmware Uploads (OTA)**: `expo-file-system` and `buffer` for transferring `.bin` binaries over BLE.
+- **Authentication**: **Firebase Authentication** (Google Sign-In via `@react-native-google-signin` and Email/Password).
 
 ---
-
-## Proposed Folder Structure
-
-This project uses **Expo Router**, where the file system defines the app's routes.
 
 ## 📁 Directory Map
 
 ```text
 root/
 ├── app/                  # ROUTING: Every file here is a route
-│   ├── (auth)/           # Logged-out flow (Login, Signup, Forgot Password)
-│   ├── _layout.tsx       # Root layout (Providers, Themes)
-│   └── (dashboard)/      # Logged-in flow (Main app features, Tabs, Feed)
-├── components/           # Reusable UI elements
-├── hooks/                # Custom React hooks
-├── services/             # API calls and Firebase
-├── constants/            # Colors, Spacing, Keys
+│   ├── (auth)/           # Logged-out flow (Login)
+│   ├── _layout.tsx       # Root layout (Theme injection, Auth Guards)
+│   ├── (tabs)/           # Authenticated user flow (Dashboard, Settings)
+│   └── asyncStorage/...  # Testing & debug routes
+├── components/           # Reusable UI (Cards, StatTiles, Thermometer, Alerts)
+├── context/              # Global state (BLEContext, AuthContext, SettingsContext)
+├── services/             # API calls (batteryApi.js, authService.js)
+├── constants/            # Colors.js, Spacing, Keys
 └── utils/                # Helper Functions
 ```
 
@@ -52,49 +52,49 @@ root/
 
 ## Navigation Strategy
 
-- Navigation will be implemented using **Expo Router**
-- Expo Router leverages a file-based routing system built on top of React Navigation
-- Routes are defined by the folder and file structure inside the `app/` directory
+- Navigation is implemented using **Expo Router** (File-based routing).
+- `<AuthLayout>` guards protect the `(tabs)` group so users cannot bypass login.
 
-### Initial Routes (Tentative)
-- Authentication
-  - Login
-  - Signup
-- Dashboard
-- Battery Details
-- Settings
-
-Navigation structure will be finalized once core screens and user flows are clearly defined.
-
-### User Flow Diagram
-
-![User Flow Diagram](./User_Flow_Diagram.png)
-
+### Primary User Flow
+1. **Authentication:** (`app/(auth)/login.js`) handled via Firebase Google/Email provider.
+2. **Dashboard / Bluetooth Connection:** (`app/(tabs)/dashboard.jsx`).
+   - If no sensor is connected, it embeds `BluetoothConnectionUI.js` to scan and pair an ESP32.
+   - If connected, it displays real-time telemetry (Voltage, Temperature, SOC, Amps).
+3. **Settings & Maintenance:** (`app/(tabs)/settings.jsx`).
+   - Controls metric toggles (Celsius/Fahrenheit), polling intervals.
+   - Initiates OTA (`Over-the-Air`) updates by writing local binaries to the module over BLE characteristics.
 
 ---
 ## High-Level Data Flow
 
 ```markdown
-Battery Hardware
-        ↓
-ESP32 Controller
-        ↓ (Bluetooth / BLE)
+Battery Hardware (ESP32)
+         ↓  (Bluetooth BLE - GATT Server)
 React Native Mobile App
-        ↓ (REST API)
-Backend Service
+         |-- Live Dashboard Render
+         |-- Validation & Altering Engine (TelemetryAlertBanner)
+         ↓  (expo-sqlite Local Queue)
+Background Sync Worker
+         ↓  (Idempotent REST APIs + ACK)
+Node.js / PostgreSQL Backend API
 ```
 
-- ESP32 transmits live battery telemetry to the mobile app via Bluetooth (BLE)
-- Mobile app reads, parses, and displays real-time battery data
-- Mobile app forwards relevant battery data to the backend for persistence and analytics
-- User authentication is handled independently using Firebase Authentication
+### Key Subsystems:
+1. **Real-time Pipeline:** ESP32 drops payload notifications; React Native deserializes the raw Hex buffer and writes it into global `BLEContext`.
+2. **Offline-First Synchronization:** When internet falls, telemetry metrics are immediately written to local `expo-sqlite` databases. When connection restores, chunks are reliably synced to the backend to ensure zero data loss.
+3. **Dynamic Alerting:** Values are passed through validation metrics (e.g. Temperature > 45°C). Critical/Warning banners are generated dynamically via `TelemetryAlertBanner.js`.
 
 ---
 
+## Theming & UI
+
+- Implemented **system-aware adaptive theming** using React Native's `useColorScheme()` hooking securely into constants.
+- The UI features a premium aesthetic featuring dynamic SVG mercury thermometers, battery visualization, pill-buttons, and responsive component sizing.
+
 ## Error, Loading & Empty States
 - Global handling for:
-  - API failures
-  - Authentication errors
-  - No data / disconnected battery
-- Consistent loading indicators across screens
-- User-friendly fallback messages
+  - API failures and network drops via Local SQLite queues.
+  - Authentication fallback flows.
+  - BLE state handling (`isScanning`, `isConnecting`, `connectedDevice`).
+- Consistent loading indicators across screens (via `ActivityIndicator` integrated into buttons).
+- Custom localized telemetry alerts for hardware safety bounds (Overvoltage, UnderTemperature, Load Shorts).
