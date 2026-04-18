@@ -43,16 +43,42 @@ We use a semantic versioning (SemVer) approach for the `version` field in `packa
 
 By following this strategy, we can safely deliver OTA updates to our users while maintaining compatibility with the native code on their devices.
 
-## 3. Publishing a Hotfix
+## 3. Publishing Workflow
 
-Updates are pushed to specific **branches** (e.g., `production`, `staging`), which are linked to **channels** built into the native app.
+Updates are published to a **branch**, which is a named release channel for your updates. The following is the mapping of our Git branches to EAS update branches:
 
-To push an OTA update:
-1. Ensure you are on the correct Git branch.
-2. Run the update command:
-   ```bash
-   eas update --branch production --message "Fix: Corrected voltage chart rendering bug"
-   ```
+- **`main` branch** -> `production` channel
+- **`staging` branch** -> `staging` channel
+- **`development` branch** -> `development` channel
+
+To publish an update, follow these steps:
+
+1.  **Checkout the correct Git branch** corresponding to the channel you want to update.
+2.  **Run the `eas update` command**, specifying the branch and a descriptive message.
+
+### Production Update
+
+To publish an update to the `production` channel, checkout the `main` branch and run:
+
+```bash
+eas update --branch production --message "Your descriptive message here"
+```
+
+### Staging Update
+
+To publish an update to the `staging` channel, checkout the `staging` branch and run:
+
+```bash
+eas update --branch staging --message "Your descriptive message here"
+```
+
+### Development Update
+
+To publish an update to the `development` channel, checkout the `development` branch and run:
+
+```bash
+eas update --branch development --message "Your descriptive message here"
+```
 
 ## 4. Expo Cloud Management
 
