@@ -54,6 +54,20 @@ const Firmware = sequelize.define(
       defaultValue: DataTypes.NOW,
       field: 'created_at',
     },
+    image_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
+    storage_key: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
+
+    image_key: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
   },
   {
     tableName: 'firmware_versions',
