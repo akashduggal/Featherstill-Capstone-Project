@@ -60,15 +60,18 @@ export default function LoginScreen() {
             {/* 1. Brand Section */}
             <View style={styles.headerSection}>
                 {/* Fallback for missing surfaceElevated: use background with border or just background */}
-                <View style={[styles.logoContainer, { backgroundColor: colors.background, borderColor: colors.tabIconDefault, borderWidth: 1 }]}>
-                    <Image 
-                        source={require('../../assets/fetherstill_official_logo.png')} 
-                        style={{width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent"}} 
-                    />
+                <Image
+                    source={require('../../assets/fetherstill_official_logo.png')}
+                    style={{ width: 125, height: 142, objectFit: "cover", borderRadius: 20, backgroundColor: "transparent" }}
+                />
+                <View style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
+                    <Text style={[styles.brandSubtitle, { color: colors.tabIconDefault }]}>
+                        A Battery Energy
+                    </Text>
+                    <Text style={[styles.brandSubtitle, { color: colors.tabIconDefault }]}>
+                        Technology Company
+                    </Text>
                 </View>
-                <Text style={[styles.brandSubtitle, { color: colors.tabIconDefault }]}>
-                    A Battery Energy Technology Company
-                </Text>
             </View>
 
             {/* 2. Actions Section */}

@@ -46,14 +46,29 @@ export const TelemetryAlertBanner = ({
     detail,
     level = 'warning',
 }) => {
-    const palette = ALERT_PALETTES[level] || ALERT_PALETTES.warning;
+    const isError = level === 'error';
+    const themeColor = isError ? "#EF4444" : colors.warning;
+    const bgColor = themeColor + '20'; // 20% opacity using hex append
 
     return (
-        <View style={[styles.container, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-            <Ionicons name={palette.ionicon} size={24} color={palette.icon} />
+        <View style={[styles.container, { backgroundColor: bgColor, borderColor: themeColor }]}>
+            
+            {/* Conditional Icon Rendering based on Alert Severity */}
+            {!isError ? (
+                // Yellow Triangle for Warnings
+                <View style={styles.iconOuter}>
+                    <View style={[styles.triangle, { borderBottomColor: themeColor }]} />
+                    <Text style={[styles.exclamation, { color: colors.background }]}>!</Text>
+                </View>
+            ) : (
+                // Solid Red Circle for Critical Errors
+                <View style={[styles.iconOuter, { height: 28, width: 28, borderRadius: 14, backgroundColor: themeColor }]}>
+                    <Text style={[styles.exclamation, { color: colors.background, marginTop: -1 }]}>!</Text>
+                </View>
+            )}
 
             <View style={styles.textBlock}>
-                <Text style={[styles.title, { color: palette.title }]}>
+                <Text style={[styles.title, { color: colors.text }]}>
                     {title}
                 </Text>
                 <Text style={[styles.detail, { color: palette.detail }]}>

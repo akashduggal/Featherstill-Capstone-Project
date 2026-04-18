@@ -213,7 +213,7 @@ export default function Settings() {
           />
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+        {/* <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <Text style={[styles.cardTitle, { color: colors.icon }]}>SYSTEM</Text>
           <SettingsCheckbox
             checked={autoRefresh}
@@ -222,7 +222,7 @@ export default function Settings() {
             subText={autoRefresh ? `Refreshing every 2.0 s` : null}
             colors={colors}
           />
-        </View>
+        </View> */}
 
         <View style={styles.actions}>
           {/* <ActionButton
@@ -248,12 +248,12 @@ export default function Settings() {
                 colors={colors}
                 disabled={!latestFirmwareVersion || latestFirmwareVersion === currentFirmwareVersion}
               />
-                <ActionButton
+                {/* <ActionButton
                   title="Clear Firmware Version"
                   icon="trash-outline"
                   onPress={handleClearFirmwareVersion}
                   colors={colors}
-                />
+                /> */}
               </>
             )}
           {connectedDevice && (

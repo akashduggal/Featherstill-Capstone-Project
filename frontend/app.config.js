@@ -11,11 +11,11 @@ const generateVersionCode = (versionString) => {
 
 const fetherstillConfig = {
   owner: 'fetherstill',
-  name: 'fetherstill',
+  name: 'Fetherstill',
   slug: 'fetherstill',
   version,
   orientation: 'portrait',
-  icon: './assets/fetherstill_official_logo.png',
+  icon: './assets/playstore.png',
   userInterfaceStyle: 'automatic',
   scheme: 'Fetherstill',
   plugins: [
@@ -55,7 +55,7 @@ const fetherstillConfig = {
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: './assets/fetherstill_official_logo.png',
+      foregroundImage: './assets/playstore.png',
       backgroundColor: '#ffffff',
     },
     edgeToEdgeEnabled: true,
@@ -92,6 +92,7 @@ export default ({ config }) => {
     android: {
       ...fetherstillConfig.android,
       package: 'com.fetherstill.app.dev',
+      allowBackup: false,
     },
   };
 
