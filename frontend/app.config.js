@@ -77,6 +77,13 @@ const fetherstillConfig = {
       projectId: '453d94d5-285f-408c-8a98-522d3767fb3b',
     },
   },
+  updates: {
+    url: 'https://u.expo.dev/453d94d5-285f-408c-8a98-522d3767fb3b',
+    fallbackToCacheTimeout: 30000,
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
 };
 
 export default ({ config }) => {
