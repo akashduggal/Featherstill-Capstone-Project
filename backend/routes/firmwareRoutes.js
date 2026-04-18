@@ -6,8 +6,9 @@ const {
   uploadFirmware,
   downloadFirmware,
   getLatestFirmware,
+  markFirmwareAsLatest,
+  listFirmwares,
 } = require('./firmwareController');
-
 /**
  * POST /api/firmware/upload
  * Upload new firmware version (Admin only)
@@ -27,6 +28,22 @@ const {
  * - 403: Forbidden (not admin)
  */
 router.post('/upload', adminOnly, upload.single('file'), uploadFirmware);
+
+router.get('/me', adminOnly, (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      id: req.user.id,
+      email: req.user.email,
+      isAdmin: req.user.isAdmin,
+      uid: req.user.uid,
+    },
+  });
+});
+// List admin Only
+router.get('/', adminOnly, listFirmwares);
+// Mark any firmware latest (admin only)
+router.patch('/:id/mark-latest', adminOnly, markFirmwareAsLatest);
 
 /**
  * GET /api/firmware/me

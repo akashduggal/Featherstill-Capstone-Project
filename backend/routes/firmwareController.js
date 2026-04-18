@@ -160,8 +160,14 @@ exports.uploadFirmware = async (req, res) => {
     }
 
     // Deactivate existing active firmware records before promoting new release
-    await Firmware.update({ is_active: false }, { where: { is_active: true } });
-
+    const firmware = await Firmware.create({
+      version,
+      filename: finalFilename,
+      file_hash: fileHash,
+      file_size: fileSize,
+      changelog: changelog || null,
+      is_active: false,
+    });
     // Generate SHA256 hash
     const fileHash = await generateFileHash(req.file.path);
     const fileSize = fs.statSync(req.file.path).size;
@@ -320,6 +326,24 @@ exports.getLatestFirmware = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch latest firmware',
+      message: error.message,
+    });
+  }
+};
+exports.listFirmwares = async (req, res) => {
+  try {
+    const firmwares = await Firmware.findAll({
+      order: [['created_at', 'DESC']],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: firmwares,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch firmware list',
       message: error.message,
     });
   }
