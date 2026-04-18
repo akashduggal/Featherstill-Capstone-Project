@@ -80,7 +80,25 @@ To publish an update to the `development` channel, checkout the `development` br
 eas update --branch development --message "Your descriptive message here"
 ```
 
-## 4. Expo Cloud Management
+## 4. Release and Rollback Process
+
+### Release Process
+
+1.  **Code Review and Merge**: All code changes must be peer-reviewed and merged into the `development` branch.
+2.  **QA on `staging`**: The `development` branch is merged into the `staging` branch, and an update is published to the `staging` channel. The QA team tests the `staging` build.
+3.  **Sign-off**: Once the QA team signs off on the `staging` build, the `staging` branch is merged into the `main` branch.
+4.  **Production Release**: An update is published to the `production` channel from the `main` branch.
+
+### Rollback Process
+
+If a critical bug is discovered in a production release, a rollback is necessary. This is done through the Expo dashboard:
+
+1.  **Navigate to the EAS Dashboard**: Open your project on `expo.dev`.
+2.  **Go to the "Updates" Tab**: Select the `production` branch.
+3.  **Find the Last Known Good Version**: Identify the last stable update from the list of published updates.
+4.  **Republish**: Click the "Republish" button for the known good version. This will push the older, stable update to your users.
+
+## 5. Expo Cloud Management
 
 All OTA updates and builds should be monitored via the Expo Dashboard at `expo.dev`.
 
