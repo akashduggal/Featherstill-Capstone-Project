@@ -12,12 +12,12 @@
       },
       "channel": "development"
     },
-    "preview": {
+    "staging": {
       "distribution": "internal",
       "env": {
-        "APP_ENV": "preview"
+        "APP_ENV": "staging"
       },
-      "channel": "preview"
+      "channel": "staging"
     },
     "production": {
       "autoIncrement": true,

@@ -45,7 +45,7 @@ By following this strategy, we can safely deliver OTA updates to our users while
 
 ## 3. Publishing a Hotfix
 
-Updates are pushed to specific **branches** (e.g., `production`, `preview`), which are linked to **channels** built into the native app.
+Updates are pushed to specific **branches** (e.g., `production`, `staging`), which are linked to **channels** built into the native app.
 
 To push an OTA update:
 1. Ensure you are on the correct Git branch.
