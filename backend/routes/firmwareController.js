@@ -159,15 +159,7 @@ exports.uploadFirmware = async (req, res) => {
       });
     }
 
-    // Deactivate existing active firmware records before promoting new release
-    const firmware = await Firmware.create({
-      version,
-      filename: finalFilename,
-      file_hash: fileHash,
-      file_size: fileSize,
-      changelog: changelog || null,
-      is_active: false,
-    });
+
     // Generate SHA256 hash
     const fileHash = await generateFileHash(req.file.path);
     const fileSize = fs.statSync(req.file.path).size;
