@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Firmware } = require('../models');
-
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const { s3, BUCKET_NAME } = require('../config/s3');
 const STORAGE_DIR = path.join(__dirname, '../storage/firmware');
 const SEMANTIC_VERSION_REGEX = /^\d+\.\d+\.\d+$/;
 
@@ -173,18 +174,41 @@ exports.uploadFirmware = async (req, res) => {
     const fileSize = fs.statSync(req.file.path).size;
 
     // Rename file to final name
-    const finalFilename = `${version}.bin`;
-    const finalPath = path.join(STORAGE_DIR, finalFilename);
-    fs.renameSync(req.file.path, finalPath);
+    const firmwareFile = req.files?.file?.[0];
+    const imageFile = req.files?.image?.[0];
 
+    if (!firmwareFile) {
+      return res.status(400).json({
+        success: false,
+        error: 'Firmware file is required',
+      });
+    }
+    let imageKey = null;
+    let imageUrl = null;
+
+    if (imageFile) {
+      imageKey = `firmware-images/${version}_${Date.now()}_${imageFile.originalname}`;
+
+      await s3.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: imageKey,
+        Body: imageFile.buffer,
+        ContentType: imageFile.mimetype,
+      }));
+
+      imageUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${imageKey}`;
+    }
     // Create database record
     const firmware = await Firmware.create({
       version,
-      filename: finalFilename,
+      filename: firmwareKey, // now S3 key
       file_hash: fileHash,
-      file_size: fileSize,
+      file_size: firmwareFile.size,
       changelog: changelog || null,
-      is_active: true,
+      is_active: false,
+
+      image_url: imageUrl,
+      storage_key: firmwareKey,
     });
 
     // Maintain retention policy: keep only the latest 5 versions
@@ -259,17 +283,9 @@ exports.downloadFirmware = async (req, res) => {
 
     // Stream file to client
     const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-
-    // Handle stream errors
-    fileStream.on('error', (error) => {
-      console.error('Error streaming firmware file:', error);
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          error: 'Error downloading firmware',
-        });
-      }
+    return res.json({
+      success: true,
+      download_url: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${firmware.storage_key}`,
     });
   } catch (error) {
     console.error('Error downloading firmware:', error);
@@ -338,8 +354,19 @@ exports.listFirmwares = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: firmwares,
+      data: {firmware: {
+        id: latest.id,
+        version: latest.version,
+        file_hash: latest.file_hash,
+        file_size: latest.file_size,
+        changelog: latest.changelog,
+        is_active: latest.is_active,
+        image_url: latest.image_url,
+        created_at: latest.created_at,
+      },
+    }
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,

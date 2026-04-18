@@ -27,7 +27,10 @@ const {
  * - 401: Unauthorized
  * - 403: Forbidden (not admin)
  */
-router.post('/upload', adminOnly, upload.single('file'), uploadFirmware);
+router.post('/upload', adminOnly, upload.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'image', maxCount: 1 },
+]), uploadFirmware);
 
 router.get('/me', adminOnly, (req, res) => {
   res.json({
